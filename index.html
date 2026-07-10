@@ -1,0 +1,2315 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>IPSRT Трекер - Облачное хранилище</title>
+    
+    <!-- Подключение Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
+    </script>
+    
+    <!-- Подключение Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js">
+    </script>
+    
+    <style>
+        /* ----- Сброс и база ----- */
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --primary: #4A6CF7;
+            --primary-light: #6B8AFF;
+            --primary-dark: #3458D6;
+            --secondary: #7C5CFC;
+            --bg: #F0F4FF;
+            --card-bg: #FFFFFF;
+            --text: #1A1A2E;
+            --text-light: #5A5A7A;
+            --border: #E2E8F0;
+            --shadow: 0 8px 30px rgba(74, 108, 247, 0.12);
+            --radius: 16px;
+            --radius-sm: 10px;
+            --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            --font: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            --success: #2D7A4F;
+            --danger: #C53030;
+            --orange: #F7A072;
+            --teal: #38B2AC;
+            --purple: #805AD5;
+            --edit-bg: #FFF8E7;
+            --edit-border: #FFD93D;
+        }
+
+        body {
+            font-family: var(--font);
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: var(--bg);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--primary-light);
+            border-radius: 10px;
+        }
+
+        .app-container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .app-header {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 24px;
+            background: var(--card-bg);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            margin-bottom: 24px;
+        }
+        .app-header .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .app-header .brand-icon {
+            width: 42px;
+            height: 42px;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-size: 22px;
+            font-weight: 700;
+        }
+        .app-header h1 {
+            font-size: 20px;
+            font-weight: 700;
+            letter-spacing: -0.3px;
+        }
+        .app-header h1 span {
+            color: var(--primary);
+        }
+        .app-header .subtitle {
+            font-size: 13px;
+            color: var(--text-light);
+            font-weight: 400;
+        }
+        .app-header .sync-status {
+            font-size: 11px;
+            padding: 4px 12px;
+            border-radius: 20px;
+            background: var(--bg);
+            color: var(--text-light);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .app-header .sync-status.online {
+            background: var(--success);
+            color: #fff;
+        }
+        .app-header .sync-status.offline {
+            background: var(--danger);
+            color: #fff;
+        }
+        .app-header .sync-status.syncing {
+            background: var(--orange);
+            color: #fff;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0%,
+            100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        .header-date {
+            background: var(--bg);
+            padding: 6px 14px;
+            border-radius: 30px;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--primary-dark);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: var(--transition);
+            user-select: none;
+            border: none;
+            cursor: pointer;
+            font-family: var(--font);
+        }
+        .header-date:hover {
+            background: var(--primary);
+            color: #fff;
+            transform: scale(1.02);
+        }
+        .header-date .date-click-hint {
+            font-size: 10px;
+            opacity: 0.6;
+            font-weight: 400;
+        }
+        .header-date input[type="date"] {
+            background: transparent;
+            border: none;
+            color: inherit;
+            font-size: 14px;
+            font-weight: 500;
+            font-family: var(--font);
+            cursor: pointer;
+            padding: 0;
+            margin: 0;
+            width: auto;
+            min-width: 0;
+            outline: none;
+        }
+        .header-date input[type="date"]::-webkit-calendar-picker-indicator {
+            filter: invert(0.4);
+            cursor: pointer;
+            padding: 4px;
+        }
+        .header-date:hover input[type="date"]::-webkit-calendar-picker-indicator {
+            filter: invert(1);
+        }
+        .header-date input[type="date"]::-webkit-datetime-edit {
+            padding: 0;
+            color: inherit;
+        }
+        .header-date input[type="date"]:focus {
+            outline: none;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .btn-today {
+            background: var(--success);
+            color: #fff;
+            border: none;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            font-family: var(--font);
+        }
+        .btn-today:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 14px rgba(45, 122, 79, 0.35);
+        }
+        .btn-sync {
+            background: var(--primary);
+            color: #fff;
+            border: none;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            font-family: var(--font);
+        }
+        .btn-sync:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 14px rgba(74, 108, 247, 0.35);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+        .stat-card {
+            background: var(--card-bg);
+            border-radius: var(--radius-sm);
+            padding: 12px 14px;
+            box-shadow: var(--shadow);
+            text-align: center;
+        }
+        .stat-card .stat-value {
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--primary);
+        }
+        .stat-card .stat-label {
+            font-size: 10px;
+            color: var(--text-light);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 3px;
+        }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+        @media (max-width: 820px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 18px 20px 22px;
+            transition: var(--transition);
+        }
+        .card:hover {
+            box-shadow: 0 12px 40px rgba(74, 108, 247, 0.15);
+        }
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 14px;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .card-header h2 {
+            font-size: 16px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .card-header h2 .emoji {
+            font-size: 18px;
+        }
+        .card-header .badge {
+            font-size: 10px;
+            background: var(--bg);
+            padding: 3px 10px;
+            border-radius: 20px;
+            color: var(--text-light);
+        }
+
+        .metric-group {
+            margin-bottom: 14px;
+            padding-bottom: 14px;
+            border-bottom: 1px solid var(--border);
+        }
+        .metric-group:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+        .metric-group label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text);
+            margin-bottom: 4px;
+        }
+        .metric-group .metric-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .metric-group .metric-row input[type="time"],
+        .metric-group .metric-row input[type="text"],
+        .metric-group .metric-row select {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1.5px solid var(--border);
+            border-radius: var(--radius-sm);
+            font-size: 14px;
+            font-family: var(--font);
+            background: #FAFBFF;
+            transition: var(--transition);
+            color: var(--text);
+            min-width: 0;
+        }
+        .metric-group .metric-row input:focus,
+        .metric-group .metric-row select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(74, 108, 247, 0.15);
+            background: #fff;
+        }
+        .metric-group .metric-row input.editing {
+            border-color: var(--edit-border);
+            background: var(--edit-bg);
+            box-shadow: 0 0 0 3px rgba(255, 217, 61, 0.25);
+        }
+        .metric-group .metric-row .send-btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: var(--radius-sm);
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .metric-group .metric-row .send-btn:hover {
+            transform: translateY(-1px);
+        }
+        .metric-group .metric-row .send-btn:active {
+            transform: translateY(0);
+        }
+        .send-btn-blue {
+            background: var(--primary);
+            color: #fff;
+        }
+        .send-btn-blue:hover {
+            box-shadow: 0 4px 14px rgba(74, 108, 247, 0.35);
+        }
+        .send-btn-green {
+            background: var(--success);
+            color: #fff;
+        }
+        .send-btn-green:hover {
+            box-shadow: 0 4px 14px rgba(45, 122, 79, 0.35);
+        }
+        .send-btn-orange {
+            background: var(--orange);
+            color: #fff;
+        }
+        .send-btn-orange:hover {
+            box-shadow: 0 4px 14px rgba(247, 160, 114, 0.35);
+        }
+        .send-btn-teal {
+            background: var(--teal);
+            color: #fff;
+        }
+        .send-btn-teal:hover {
+            box-shadow: 0 4px 14px rgba(56, 178, 172, 0.35);
+        }
+        .send-btn-purple {
+            background: var(--purple);
+            color: #fff;
+        }
+        .send-btn-purple:hover {
+            box-shadow: 0 4px 14px rgba(128, 90, 213, 0.35);
+        }
+        .send-btn-pink {
+            background: #D53F8C;
+            color: #fff;
+        }
+        .send-btn-pink:hover {
+            box-shadow: 0 4px 14px rgba(213, 63, 140, 0.35);
+        }
+        .send-btn-update {
+            background: var(--edit-border);
+            color: var(--text);
+            box-shadow: 0 0 0 2px var(--edit-border);
+        }
+        .send-btn-update:hover {
+            box-shadow: 0 4px 14px rgba(255, 217, 61, 0.5);
+        }
+
+        .slider-wrap {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex: 1;
+        }
+        .slider-wrap input[type="range"] {
+            flex: 1;
+            -webkit-appearance: none;
+            height: 6px;
+            border-radius: 10px;
+            outline: none;
+        }
+        .slider-wrap input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: var(--primary);
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(74, 108, 247, 0.3);
+            border: 2px solid #fff;
+        }
+        .slider-wrap .value {
+            font-size: 20px;
+            font-weight: 700;
+            min-width: 32px;
+            text-align: center;
+            color: var(--primary);
+        }
+        #moodSlider {
+            background: linear-gradient(to right, #FF6B6B, #FFD93D, #6BCB77);
+        }
+        #energySlider {
+            background: linear-gradient(to right, #A8D0E6, #F3B0A0, #E27D60);
+        }
+
+        .issue-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        @media (max-width: 480px) {
+            .issue-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        .issue-check {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: #FAFBFF;
+            border-radius: var(--radius-sm);
+            border: 1.5px solid var(--border);
+            transition: var(--transition);
+            cursor: pointer;
+        }
+        .issue-check:hover {
+            border-color: var(--primary-light);
+            background: #F5F8FF;
+        }
+        .issue-check input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            accent-color: var(--primary);
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+        .issue-check label {
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            color: var(--text);
+        }
+
+        .btn-outline {
+            background: transparent;
+            color: var(--primary);
+            border: 1.5px solid var(--primary);
+            padding: 8px 18px;
+            border-radius: var(--radius-sm);
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            font-family: var(--font);
+        }
+        .btn-outline:hover {
+            background: var(--primary);
+            color: #fff;
+        }
+        .btn-danger-outline {
+            background: transparent;
+            color: var(--danger);
+            border: 1.5px solid var(--danger);
+            padding: 8px 18px;
+            border-radius: var(--radius-sm);
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            font-family: var(--font);
+        }
+        .btn-danger-outline:hover {
+            background: var(--danger);
+            color: #fff;
+        }
+        .btn-sm {
+            padding: 5px 12px;
+            font-size: 11px;
+        }
+
+        .entries-list {
+            max-height: 500px;
+            overflow-y: auto;
+            margin-top: 6px;
+        }
+        .entry-item {
+            padding: 10px 14px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            transition: var(--transition);
+            border-radius: 6px;
+            font-size: 13px;
+        }
+        .entry-item:hover {
+            background: #F8FAFF;
+        }
+        .entry-item:last-child {
+            border-bottom: none;
+        }
+        .entry-item .entry-time {
+            font-weight: 600;
+            color: var(--primary);
+            min-width: 70px;
+            font-size: 12px;
+        }
+        .entry-item .entry-type {
+            font-weight: 600;
+            color: var(--text-light);
+            min-width: 70px;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        .entry-item .entry-value {
+            flex: 1;
+            color: var(--text);
+            word-break: break-word;
+        }
+        .entry-item .entry-actions {
+            display: flex;
+            gap: 4px;
+        }
+        .entry-item .entry-actions button {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            transition: var(--transition);
+            color: var(--text-light);
+        }
+        .entry-item .entry-actions button:hover {
+            background: var(--bg);
+            color: var(--text);
+        }
+        .entry-item .entry-actions .edit-btn:hover {
+            color: var(--edit-border);
+        }
+        .entry-item .entry-actions .delete-btn:hover {
+            color: var(--danger);
+        }
+
+        .entry-item.editing {
+            background: var(--edit-bg);
+            border-left: 3px solid var(--edit-border);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 24px 16px;
+            color: var(--text-light);
+        }
+        .empty-state .empty-icon {
+            font-size: 32px;
+            margin-bottom: 8px;
+            opacity: 0.5;
+        }
+        .empty-state p {
+            font-size: 13px;
+        }
+
+        .stability-ring {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            padding: 8px 0;
+            flex-wrap: wrap;
+        }
+        .stability-ring .ring {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            font-weight: 700;
+            color: #fff;
+            background: conic-gradient(var(--primary) 0% 70%, var(--border) 70% 100%);
+            position: relative;
+        }
+        .stability-ring .ring .inner {
+            width: 52px;
+            height: 52px;
+            border-radius: 50%;
+            background: var(--card-bg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            color: var(--text);
+        }
+        .stability-ring .ring-details {
+            font-size: 13px;
+            color: var(--text-light);
+        }
+        .stability-ring .ring-details strong {
+            color: var(--text);
+            display: block;
+            font-size: 16px;
+        }
+
+        .charts-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 24px;
+            margin-top: 24px;
+        }
+        .charts-grid .card {
+            padding: 14px 16px 18px;
+        }
+        .charts-grid .card canvas {
+            max-height: 200px;
+            max-width: 100%;
+        }
+        .chart-full {
+            grid-column: 1 / -1;
+        }
+        @media (max-width: 1024px) {
+            .charts-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+        @media (max-width: 700px) {
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: var(--text);
+            color: #fff;
+            padding: 12px 20px;
+            border-radius: var(--radius-sm);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+            font-size: 13px;
+            font-weight: 500;
+            transform: translateY(80px);
+            opacity: 0;
+            transition: all 0.4s ease;
+            z-index: 999;
+        }
+        .toast.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+        .toast.success {
+            background: var(--success);
+        }
+        .toast.error {
+            background: var(--danger);
+        }
+        .toast.info {
+            background: var(--primary);
+        }
+
+        .edit-indicator {
+            display: none;
+            font-size: 12px;
+            color: var(--edit-border);
+            font-weight: 600;
+            background: var(--edit-bg);
+            padding: 2px 10px;
+            border-radius: 12px;
+            border: 1px solid var(--edit-border);
+        }
+        .edit-indicator.active {
+            display: inline-block;
+        }
+
+        .chart-note {
+            font-size: 11px;
+            color: var(--text-light);
+            text-align: center;
+            margin-top: 6px;
+            font-style: italic;
+        }
+
+        @media (max-width: 600px) {
+            .app-header {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 10px;
+                padding: 14px;
+            }
+            .app-header .brand h1 {
+                font-size: 17px;
+            }
+            .header-date {
+                align-self: flex-start;
+                font-size: 13px;
+                flex-wrap: wrap;
+            }
+            .header-actions {
+                align-self: flex-start;
+            }
+            .card {
+                padding: 14px;
+            }
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            .metric-group .metric-row {
+                flex-wrap: wrap;
+            }
+            .metric-group .metric-row input,
+            .metric-group .metric-row select {
+                flex-basis: 100%;
+            }
+            .metric-group .metric-row .send-btn {
+                flex-basis: 100%;
+                justify-content: center;
+            }
+            .slider-wrap {
+                flex-wrap: wrap;
+            }
+            .entry-item {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 4px;
+            }
+            .entry-item .entry-actions {
+                justify-content: flex-end;
+            }
+        }
+        @media (max-width: 380px) {
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            .issue-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
+            animation: fadeInUp 0.4s ease forwards;
+        }
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(16px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container" id="app">
+
+        <div class="toast" id="toast"></div>
+
+        <header class="app-header">
+            <div class="brand">
+                <div class="brand-icon">🌊</div>
+                <div>
+                    <h1>IPSRT <span>Трекер</span></h1>
+                    <div class="subtitle">Облачное хранилище · Межличностный и социальный ритм</div>
+                </div>
+            </div>
+            <div class="header-actions">
+                <span class="sync-status" id="syncStatus">⏳ Подключение...</span>
+                <button class="btn-sync" id="syncBtn">🔄 Синхронизировать</button>
+                <button class="btn-today" id="goToTodayBtn">📅 Сегодня</button>
+                <button class="header-date" id="datePickerContainer">
+                    <span>📅</span>
+                    <input type="date" id="datePicker" />
+                    <span class="date-click-hint">✏️ нажмите для смены</span>
+                </button>
+            </div>
+        </header>
+
+        <div class="stats-grid" id="statsGrid">
+            <div class="stat-card">
+                <div class="stat-value" id="totalLogs">0</div>
+                <div class="stat-label">Всего записей</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="avgMood">—</div>
+                <div class="stat-label">Среднее настроение</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="avgEnergy">—</div>
+                <div class="stat-label">Средняя энергия</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="stabilityScore">—%</div>
+                <div class="stat-label">Стабильность</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="mealCount">0</div>
+                <div class="stat-label">Приёмы пищи</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="activityCount">0</div>
+                <div class="stat-label">Активности</div>
+            </div>
+        </div>
+
+        <div class="main-grid">
+            <!-- Левая колонка: Логгеры -->
+            <div>
+                <div class="card" id="logCard">
+                    <div class="card-header">
+                        <h2><span class="emoji">⚡</span> Логгеры реального времени</h2>
+                        <span class="badge" id="logDateBadge">Сегодня</span>
+                        <span class="edit-indicator" id="editIndicator">✏️ Редактирование</span>
+                    </div>
+
+                    <!-- Время пробуждения -->
+                    <div class="metric-group">
+                        <label>🌅 Время пробуждения</label>
+                        <div class="metric-row">
+                            <input type="time" id="wakeTime" />
+                            <button class="send-btn send-btn-blue" id="sendWakeBtn">📤 Отправить</button>
+                        </div>
+                    </div>
+
+                    <!-- Первый контакт -->
+                    <div class="metric-group">
+                        <label>🤝 Первый контакт</label>
+                        <div class="metric-row">
+                            <input type="time" id="firstContact" />
+                            <button class="send-btn send-btn-blue" id="sendFirstContactBtn">📤 Отправить</button>
+                        </div>
+                    </div>
+
+                    <!-- Начало активности -->
+                    <div class="metric-group">
+                        <label>💼 Начало активности</label>
+                        <div class="metric-row">
+                            <input type="time" id="startActivity" />
+                            <button class="send-btn send-btn-blue" id="sendStartActivityBtn">📤 Отправить</button>
+                        </div>
+                    </div>
+
+                    <!-- Тип активности -->
+                    <div class="metric-group">
+                        <label>📌 Тип активности</label>
+                        <div class="metric-row">
+                            <select id="activityType">
+                                <option value="Work">Работа</option>
+                                <option value="Hobbies">Хобби</option>
+                                <option value="Studying">Учёба</option>
+                                <option value="Chores">Домашние дела</option>
+                            </select>
+                            <button class="send-btn send-btn-orange" id="sendActivityTypeBtn">📤 Отправить</button>
+                        </div>
+                    </div>
+
+                    <!-- Время сна -->
+                    <div class="metric-group">
+                        <label>🌙 Время сна</label>
+                        <div class="metric-row">
+                            <input type="time" id="bedtime" />
+                            <button class="send-btn send-btn-blue" id="sendBedtimeBtn">📤 Отправить</button>
+                        </div>
+                    </div>
+
+                    <!-- Настроение -->
+                    <div class="metric-group">
+                        <label>😊 Настроение</label>
+                        <div class="metric-row">
+                            <div class="slider-wrap">
+                                <input type="range" id="moodSlider" min="1" max="10" value="6" step="1" />
+                                <span class="value" id="moodDisplay">6</span>
+                            </div>
+                            <button class="send-btn send-btn-green" id="sendMoodBtn">📤 Отправить</button>
+                        </div>
+                    </div>
+
+                    <!-- Энергия -->
+                    <div class="metric-group">
+                        <label>⚡ Энергия</label>
+                        <div class="metric-row">
+                            <div class="slider-wrap">
+                                <input type="range" id="energySlider" min="1" max="10" value="6" step="1" />
+                                <span class="value" id="energyDisplay">6</span>
+                            </div>
+                            <button class="send-btn send-btn-teal" id="sendEnergyBtn">📤 Отправить</button>
+                        </div>
+                    </div>
+
+                    <!-- Межличностные проблемы -->
+                    <div class="metric-group">
+                        <label>⚡ Межличностные проблемы (выберите и отправьте)</label>
+                        <div class="issue-grid" style="margin-bottom:8px;">
+                            <div class="issue-check">
+                                <input type="checkbox" id="issueGrief" />
+                                <label for="issueGrief">💔 Горе</label>
+                            </div>
+                            <div class="issue-check">
+                                <input type="checkbox" id="issueDispute" />
+                                <label for="issueDispute">⚡ Ролевой конфликт</label>
+                            </div>
+                            <div class="issue-check">
+                                <input type="checkbox" id="issueTransition" />
+                                <label for="issueTransition">🔄 Ролевой переход</label>
+                            </div>
+                            <div class="issue-check">
+                                <input type="checkbox" id="issueDeficit" />
+                                <label for="issueDeficit">🌐 Межличностный дефицит</label>
+                            </div>
+                        </div>
+                        <div class="metric-row">
+                            <button class="send-btn send-btn-purple" id="sendIssuesBtn" style="flex:1;">📤 Отправить выбранные проблемы</button>
+                        </div>
+                    </div>
+
+                    <!-- Заметки -->
+                    <div class="metric-group">
+                        <label>📓 Заметки</label>
+                        <div class="metric-row">
+                            <input type="text" id="notes" placeholder="Напишите заметку…" />
+                            <button class="send-btn send-btn-pink" id="sendNotesBtn">📤 Отправить</button>
+                        </div>
+                    </div>
+
+                    <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
+                        <button class="btn-outline btn-sm" id="clearAllBtn">🗑️ Очистить всё</button>
+                        <button class="btn-outline btn-sm" id="exportBtn">📥 Экспорт JSON</button>
+                        <button class="btn-danger-outline btn-sm" id="cancelEditBtn" style="display:none;">✖️ Отменить редактирование</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Правая колонка: История + Стабильность -->
+            <div>
+                <!-- Стабильность -->
+                <div class="card" style="margin-bottom:24px;">
+                    <div class="card-header">
+                        <h2><span class="emoji">📊</span> Стабильность ритма</h2>
+                        <span class="badge">4 основных ритма</span>
+                    </div>
+                    <div class="stability-ring">
+                        <div class="ring" id="ringVisual">
+                            <div class="inner" id="ringInner">—%</div>
+                        </div>
+                        <div class="ring-details">
+                            <strong id="stabilityLabel">Расчёт…</strong>
+                            <span id="stabilityDesc">Основано на времени пробуждения, первом контакте, начале активности и времени сна.</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- История -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2><span class="emoji">📋</span> Записи за <span id="historyDateLabel">Сегодня</span></h2>
+                        <span class="badge" id="historyCount">0 записей</span>
+                    </div>
+                    <div class="entries-list" id="entriesList">
+                        <div class="empty-state">
+                            <div class="empty-icon">📭</div>
+                            <p>Нет записей за эту дату. Начните отправлять метрики!</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Секция графиков -->
+        <div class="charts-grid" id="chartsGrid">
+            <!-- Тренд времени пробуждения -->
+            <div class="card">
+                <div class="card-header">
+                    <h2><span class="emoji">⏰</span> Тренд времени пробуждения</h2>
+                    <span class="badge">X: Дата · Y: Время</span>
+                </div>
+                <canvas id="wakeChart"></canvas>
+                <div class="chart-note">Показывает тренд времени пробуждения</div>
+            </div>
+
+            <!-- Тренд первого контакта -->
+            <div class="card">
+                <div class="card-header">
+                    <h2><span class="emoji">🤝</span> Тренд первого контакта</h2>
+                    <span class="badge">X: Дата · Y: Время</span>
+                </div>
+                <canvas id="firstContactChart"></canvas>
+                <div class="chart-note">Показывает тренд времени первого контакта</div>
+            </div>
+
+            <!-- Тренд начала активности -->
+            <div class="card">
+                <div class="card-header">
+                    <h2><span class="emoji">💼</span> Тренд начала активности</h2>
+                    <span class="badge">X: Дата · Y: Время</span>
+                </div>
+                <canvas id="startActivityChart"></canvas>
+                <div class="chart-note">Показывает тренд времени начала активности</div>
+            </div>
+
+            <!-- Тренд времени сна -->
+            <div class="card">
+                <div class="card-header">
+                    <h2><span class="emoji">🌙</span> Тренд времени сна</h2>
+                    <span class="badge">X: Дата · Y: Время</span>
+                </div>
+                <canvas id="bedtimeChart"></canvas>
+                <div class="chart-note">Показывает тренд времени сна</div>
+            </div>
+
+            <!-- Тренд настроения -->
+            <div class="card">
+                <div class="card-header">
+                    <h2><span class="emoji">😊</span> Тренд настроения</h2>
+                    <span class="badge">X: Дата · Y: Настроение (1-10)</span>
+                </div>
+                <canvas id="moodChart"></canvas>
+                <div class="chart-note">Показывает тренд настроения</div>
+            </div>
+
+            <!-- Тренд энергии -->
+            <div class="card">
+                <div class="card-header">
+                    <h2><span class="emoji">⚡</span> Тренд энергии</h2>
+                    <span class="badge">X: Дата · Y: Энергия (1-10)</span>
+                </div>
+                <canvas id="energyChart"></canvas>
+                <div class="chart-note">Показывает тренд энергии</div>
+            </div>
+
+            <!-- Частота проблем -->
+            <div class="card">
+                <div class="card-header">
+                    <h2><span class="emoji">📊</span> Частота проблем</h2>
+                </div>
+                <canvas id="issuesChart"></canvas>
+                <div class="chart-note">Как часто сообщались межличностные проблемы</div>
+            </div>
+
+            <!-- Типы активности -->
+            <div class="card">
+                <div class="card-header">
+                    <h2><span class="emoji">🧩</span> Типы активности</h2>
+                </div>
+                <canvas id="activityTypeChart"></canvas>
+                <div class="chart-note">Распределение ваших типов активности</div>
+            </div>
+        </div>
+
+        <footer style="text-align:center;padding:16px 0 4px;font-size:12px;color:var(--text-light);">
+            IPSRT Трекер · Облачная синхронизация · Данные хранятся в Supabase · Нажмите ✏️ на любой записи для редактирования
+        </footer>
+    </div>
+
+    <script>
+        (function() {
+            'use strict';
+
+            // ---- КОНФИГУРАЦИЯ SUPABASE ----
+            const SUPABASE_URL = 'https://nytprzfdmjuggodvospd.supabase.co/rest/v1/';
+            const SUPABASE_ANON_KEY =
+                'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im55dHByemZkbWp1Z2dvZHZvc3BkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2NjQwNzcsImV4cCI6MjA5OTI0MDA3N30.PG5KNaN8QIhJxJ25ZovwfR5YL3QbQYxSzKZ9vgmK3og';
+
+            // Инициализация клиента Supabase
+            const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+            // ---- DOM refs ----
+            const $ = id => document.getElementById(id);
+            const datePicker = $('datePicker');
+            const goToTodayBtn = $('goToTodayBtn');
+            const logDateBadge = $('logDateBadge');
+            const historyDateLabel = $('historyDateLabel');
+            const totalLogsEl = $('totalLogs');
+            const avgMoodEl = $('avgMood');
+            const avgEnergyEl = $('avgEnergy');
+            const stabilityScoreEl = $('stabilityScore');
+            const mealCountEl = $('mealCount');
+            const activityCountEl = $('activityCount');
+            const entriesList = $('entriesList');
+            const historyCount = $('historyCount');
+            const toast = $('toast');
+            const editIndicator = $('editIndicator');
+            const cancelEditBtn = $('cancelEditBtn');
+            const syncStatus = $('syncStatus');
+            const syncBtn = $('syncBtn');
+
+            // Поля ввода
+            const wakeTime = $('wakeTime');
+            const firstContact = $('firstContact');
+            const startActivity = $('startActivity');
+            const bedtime = $('bedtime');
+            const activityType = $('activityType');
+            const moodSlider = $('moodSlider');
+            const moodDisplay = $('moodDisplay');
+            const energySlider = $('energySlider');
+            const energyDisplay = $('energyDisplay');
+            const issueGrief = $('issueGrief');
+            const issueDispute = $('issueDispute');
+            const issueTransition = $('issueTransition');
+            const issueDeficit = $('issueDeficit');
+            const notes = $('notes');
+
+            // Кнопки отправки
+            const sendWakeBtn = $('sendWakeBtn');
+            const sendFirstContactBtn = $('sendFirstContactBtn');
+            const sendStartActivityBtn = $('sendStartActivityBtn');
+            const sendBedtimeBtn = $('sendBedtimeBtn');
+            const sendActivityTypeBtn = $('sendActivityTypeBtn');
+            const sendMoodBtn = $('sendMoodBtn');
+            const sendEnergyBtn = $('sendEnergyBtn');
+            const sendIssuesBtn = $('sendIssuesBtn');
+            const sendNotesBtn = $('sendNotesBtn');
+
+            // Стабильность
+            const ringVisual = $('ringVisual');
+            const ringInner = $('ringInner');
+            const stabilityLabel = $('stabilityLabel');
+            const stabilityDesc = $('stabilityDesc');
+
+            // Холсты для графиков
+            const wakeCanvas = $('wakeChart');
+            const firstContactCanvas = $('firstContactChart');
+            const startActivityCanvas = $('startActivityChart');
+            const bedtimeCanvas = $('bedtimeChart');
+            const moodCanvas = $('moodChart');
+            const energyCanvas = $('energyChart');
+            const issuesCanvas = $('issuesChart');
+            const activityTypeCanvas = $('activityTypeChart');
+
+            // ---- Состояние ----
+            let logs = [];
+            let selectedDate = getToday();
+            let editState = null;
+            let chartInstances = {};
+            let isSyncing = false;
+            let userId = null;
+            let isOnline = false;
+            let isInitialized = false;
+
+            // ---- Вспомогательные функции ----
+            function getToday() {
+                const d = new Date();
+                return d.toISOString().split('T')[0];
+            }
+
+            function getNow() {
+                const d = new Date();
+                return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+            }
+
+            function getFullTimestamp() {
+                const d = new Date();
+                return d.toISOString().replace('T', ' ').slice(0, 16);
+            }
+
+            function formatDateDisplay(dateStr) {
+                try {
+                    const d = new Date(dateStr + 'T00:00:00');
+                    return d.toLocaleDateString('ru-RU', {
+                        weekday: 'short',
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric'
+                    });
+                } catch (e) {
+                    return dateStr;
+                }
+            }
+
+            function formatDateShort(dateStr) {
+                try {
+                    const d = new Date(dateStr + 'T00:00:00');
+                    return d.toLocaleDateString('ru-RU', { month: 'short', day: 'numeric' });
+                } catch (e) {
+                    return dateStr;
+                }
+            }
+
+            function getIssueLabels() {
+                const labels = [];
+                if (issueGrief.checked) labels.push('Grief');
+                if (issueDispute.checked) labels.push('Role Dispute');
+                if (issueTransition.checked) labels.push('Role Transition');
+                if (issueDeficit.checked) labels.push('Interpersonal Deficit');
+                return labels;
+            }
+
+            function setIssueCheckboxes(labels) {
+                if (!labels || !Array.isArray(labels)) return;
+                issueGrief.checked = labels.includes('Grief');
+                issueDispute.checked = labels.includes('Role Dispute');
+                issueTransition.checked = labels.includes('Role Transition');
+                issueDeficit.checked = labels.includes('Interpersonal Deficit');
+            }
+
+            function getValueDisplay(value) {
+                if (typeof value === 'number') return value.toString();
+                if (Array.isArray(value)) return value.join(', ') || 'none';
+                return value || '—';
+            }
+
+            // ---- Аутентификация Supabase ----
+            async function signInAnonymously() {
+                try {
+                    const { data, error } = await supabase.auth.signInAnonymously();
+                    if (error) {
+                        console.error('Ошибка аутентификации:', error);
+                        setSyncStatus('offline', '❌ Ошибка входа');
+                        return false;
+                    }
+                    userId = data.user.id;
+                    console.log('✅ Аутентифицировано в Supabase');
+                    setSyncStatus('online', '✅ Подключено');
+                    isOnline = true;
+                    return true;
+                } catch (error) {
+                    console.error('Ошибка аутентификации:', error);
+                    setSyncStatus('offline', '❌ Ошибка входа');
+                    isOnline = false;
+                    return false;
+                }
+            }
+
+            // ---- CRUD операции Supabase ----
+            async function loadLogsFromSupabase() {
+                try {
+                    const { data, error } = await supabase
+                        .from('ipsrt_logs')
+                        .select('*')
+                        .order('date', { ascending: false })
+                        .order('time', { ascending: false });
+
+                    if (error) {
+                        console.error('Ошибка загрузки:', error);
+                        throw error;
+                    }
+
+                    if (data && data.length > 0) {
+                        logs = data.map(row => ({
+                            id: row.id,
+                            date: row.date,
+                            time: row.time,
+                            timestamp: row.timestamp,
+                            type: row.type,
+                            value: row.value
+                        }));
+                    } else {
+                        logs = [];
+                    }
+
+                    return true;
+                } catch (error) {
+                    console.error('Ошибка загрузки:', error);
+                    showToast('❌ Не удалось загрузить данные из облака', 'error');
+                    return false;
+                }
+            }
+
+            async function addLogToSupabase(log) {
+                try {
+                    const { data, error } = await supabase
+                        .from('ipsrt_logs')
+                        .insert([{
+                            date: log.date,
+                            time: log.time,
+                            timestamp: log.timestamp,
+                            type: log.type,
+                            value: log.value
+                        }])
+                        .select();
+
+                    if (error) {
+                        console.error('Ошибка вставки:', error);
+                        throw error;
+                    }
+
+                    return data && data.length > 0 ? data[0] : null;
+                } catch (error) {
+                    console.error('Ошибка вставки:', error);
+                    showToast('❌ Не удалось сохранить в облаке', 'error');
+                    return null;
+                }
+            }
+
+            async function updateLogInSupabase(id, log) {
+                try {
+                    const { error } = await supabase
+                        .from('ipsrt_logs')
+                        .update({
+                            date: log.date,
+                            time: log.time,
+                            timestamp: log.timestamp,
+                            type: log.type,
+                            value: log.value
+                        })
+                        .eq('id', id);
+
+                    if (error) {
+                        console.error('Ошибка обновления:', error);
+                        throw error;
+                    }
+
+                    return true;
+                } catch (error) {
+                    console.error('Ошибка обновления:', error);
+                    showToast('❌ Не удалось обновить в облаке', 'error');
+                    return false;
+                }
+            }
+
+            async function deleteLogFromSupabase(id) {
+                try {
+                    const { error } = await supabase
+                        .from('ipsrt_logs')
+                        .delete()
+                        .eq('id', id);
+
+                    if (error) {
+                        console.error('Ошибка удаления:', error);
+                        throw error;
+                    }
+
+                    return true;
+                } catch (error) {
+                    console.error('Ошибка удаления:', error);
+                    showToast('❌ Не удалось удалить из облака', 'error');
+                    return false;
+                }
+            }
+
+            async function clearAllFromSupabase() {
+                try {
+                    const { error } = await supabase
+                        .from('ipsrt_logs')
+                        .delete()
+                        .not('id', 'is', null);
+
+                    if (error) {
+                        console.error('Ошибка очистки:', error);
+                        throw error;
+                    }
+
+                    return true;
+                } catch (error) {
+                    console.error('Ошибка очистки:', error);
+                    showToast('❌ Не удалось очистить облачные данные', 'error');
+                    return false;
+                }
+            }
+
+            function setSyncStatus(status, text) {
+                if (syncStatus) {
+                    syncStatus.className = 'sync-status ' + status;
+                    syncStatus.textContent = text;
+                }
+            }
+
+            // ---- CRUD операции (с синхронизацией) ----
+            async function addLog(type, value) {
+                const log = {
+                    date: selectedDate,
+                    time: getNow(),
+                    timestamp: getFullTimestamp(),
+                    type: type,
+                    value: value
+                };
+
+                // Добавление в Supabase
+                const inserted = await addLogToSupabase(log);
+                if (inserted) {
+                    // Добавление в локальное состояние
+                    logs.unshift({
+                        id: inserted.id,
+                        date: inserted.date,
+                        time: inserted.time,
+                        timestamp: inserted.timestamp,
+                        type: inserted.type,
+                        value: inserted.value
+                    });
+                    refreshUI();
+                    showToast(`✅ ${type}: ${getValueDisplay(value)} (Сохранено в облаке)`, 'success');
+                    return;
+                }
+
+                showToast('⚠️ Не удалось сохранить в облаке, проверьте подключение', 'error');
+            }
+
+            async function updateLog(index, type, value) {
+                if (index < 0 || index >= logs.length) return;
+                const log = logs[index];
+                const updatedLog = {
+                    date: log.date,
+                    time: getNow(),
+                    timestamp: getFullTimestamp(),
+                    type: type,
+                    value: value
+                };
+
+                const success = await updateLogInSupabase(log.id, updatedLog);
+                if (success) {
+                    logs[index].value = value;
+                    logs[index].time = getNow();
+                    logs[index].timestamp = getFullTimestamp();
+                    refreshUI();
+                    clearEditState();
+                    showToast(`✅ Обновлено ${type}`, 'success');
+                }
+            }
+
+            async function deleteLog(index) {
+                if (!confirm('Удалить эту запись?')) return;
+                const log = logs[index];
+                if (!log) return;
+
+                const success = await deleteLogFromSupabase(log.id);
+                if (success) {
+                    logs.splice(index, 1);
+                    refreshUI();
+                    if (editState && editState.index === index) clearEditState();
+                    showToast(`🗑️ ${log.type} удалено`, 'info');
+                }
+            }
+
+            async function clearAll() {
+                if (logs.length === 0) return;
+                if (!confirm('⚠️ Удалить ВСЕ записи? Это действие нельзя отменить.')) return;
+
+                const success = await clearAllFromSupabase();
+                if (success) {
+                    logs = [];
+                    refreshUI();
+                    clearEditState();
+                    showToast('🗑️ Всё очищено в облаке', 'error');
+                }
+            }
+
+            // ---- Состояние редактирования ----
+            function setEditState(index, type, value) {
+                clearEditState();
+                editState = { index, type, value };
+                editIndicator.classList.add('active');
+                cancelEditBtn.style.display = 'inline-block';
+
+                document.querySelectorAll('.entry-item').forEach(el => el.classList.remove('editing'));
+                const items = document.querySelectorAll('.entry-item');
+                if (items && items[index]) {
+                    items[index].classList.add('editing');
+                    items[index].scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+
+                const fieldMap = {
+                    'Wake Time': { input: wakeTime, type: 'time' },
+                    'First Contact': { input: firstContact, type: 'time' },
+                    'Start Activity': { input: startActivity, type: 'time' },
+                    'Bedtime': { input: bedtime, type: 'time' },
+                    'Activity Type': { input: activityType, type: 'select' },
+                    'Mood': { input: moodSlider, type: 'slider', display: moodDisplay },
+                    'Energy': { input: energySlider, type: 'slider', display: energyDisplay },
+                    'Issues': { input: null, type: 'issues' },
+                    'Note': { input: notes, type: 'text' }
+                };
+
+                const field = fieldMap[type];
+                if (field) {
+                    if (field.type === 'time' || field.type === 'text') {
+                        field.input.value = value || '';
+                        field.input.classList.add('editing');
+                    } else if (field.type === 'select') {
+                        field.input.value = value || 'Work';
+                        field.input.classList.add('editing');
+                    } else if (field.type === 'slider') {
+                        const val = parseInt(value) || 6;
+                        field.input.value = val;
+                        field.display.textContent = val;
+                        field.input.classList.add('editing');
+                    } else if (field.type === 'issues') {
+                        if (Array.isArray(value)) {
+                            setIssueCheckboxes(value);
+                        }
+                    }
+                }
+
+                const btnMap = {
+                    'Wake Time': sendWakeBtn,
+                    'First Contact': sendFirstContactBtn,
+                    'Start Activity': sendStartActivityBtn,
+                    'Bedtime': sendBedtimeBtn,
+                    'Activity Type': sendActivityTypeBtn,
+                    'Mood': sendMoodBtn,
+                    'Energy': sendEnergyBtn,
+                    'Issues': sendIssuesBtn,
+                    'Note': sendNotesBtn
+                };
+                const btn = btnMap[type];
+                if (btn) {
+                    btn.textContent = '✏️ Обновить';
+                    btn.classList.add('send-btn-update');
+                }
+
+                showToast(`✏️ Редактирование ${type}`, 'info');
+            }
+
+            function clearEditState() {
+                if (editState) {
+                    document.querySelectorAll('.metric-row input, .metric-row select').forEach(el => {
+                        el.classList.remove('editing');
+                    });
+                    const allBtns = [
+                        sendWakeBtn, sendFirstContactBtn, sendStartActivityBtn,
+                        sendBedtimeBtn, sendActivityTypeBtn, sendMoodBtn,
+                        sendEnergyBtn, sendIssuesBtn, sendNotesBtn
+                    ];
+                    const originalTexts = {
+                        'sendWakeBtn': '📤 Отправить',
+                        'sendFirstContactBtn': '📤 Отправить',
+                        'sendStartActivityBtn': '📤 Отправить',
+                        'sendBedtimeBtn': '📤 Отправить',
+                        'sendActivityTypeBtn': '📤 Отправить',
+                        'sendMoodBtn': '📤 Отправить',
+                        'sendEnergyBtn': '📤 Отправить',
+                        'sendIssuesBtn': '📤 Отправить выбранные проблемы',
+                        'sendNotesBtn': '📤 Отправить'
+                    };
+                    allBtns.forEach(b => {
+                        if (b && b.id) {
+                            b.textContent = originalTexts[b.id] || '📤 Отправить';
+                            b.classList.remove('send-btn-update');
+                        }
+                    });
+                    document.querySelectorAll('.entry-item').forEach(el => el.classList.remove('editing'));
+                }
+                editState = null;
+                editIndicator.classList.remove('active');
+                cancelEditBtn.style.display = 'none';
+            }
+
+            // ---- Выбор даты ----
+            function setSelectedDate(date) {
+                selectedDate = date;
+                datePicker.value = date;
+                const displayDate = formatDateDisplay(date);
+                logDateBadge.textContent = formatDateShort(date);
+                historyDateLabel.textContent = displayDate;
+                clearEditState();
+                refreshUI();
+            }
+
+            function goToToday() {
+                setSelectedDate(getToday());
+                showToast('📅 Переход к сегодняшней дате', 'info');
+            }
+
+            // ---- Экспорт ----
+            function exportJSON() {
+                if (logs.length === 0) {
+                    showToast('Нет данных для экспорта.', 'error');
+                    return;
+                }
+                const dataStr = JSON.stringify(logs, null, 2);
+                const blob = new Blob([dataStr], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `ipsrt_logs_${getToday()}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                showToast('📥 Экспорт выполнен!', 'success');
+            }
+
+            // ---- Статистика ----
+            function computeStats() {
+                const total = logs.length;
+                totalLogsEl.textContent = total;
+
+                const moodLogs = logs.filter(l => l.type === 'Mood');
+                const energyLogs = logs.filter(l => l.type === 'Energy');
+                const mealLogs = logs.filter(l => l.type === 'Meal');
+                const activityLogs = logs.filter(l => l.type === 'Activity');
+
+                mealCountEl.textContent = mealLogs.length;
+                activityCountEl.textContent = activityLogs.length;
+
+                if (moodLogs.length > 0) {
+                    const moodSum = moodLogs.reduce((s, l) => s + parseInt(l.value, 10), 0);
+                    avgMoodEl.textContent = (moodSum / moodLogs.length).toFixed(1);
+                } else {
+                    avgMoodEl.textContent = '—';
+                }
+
+                if (energyLogs.length > 0) {
+                    const energySum = energyLogs.reduce((s, l) => s + parseInt(l.value, 10), 0);
+                    avgEnergyEl.textContent = (energySum / energyLogs.length).toFixed(1);
+                } else {
+                    avgEnergyEl.textContent = '—';
+                }
+
+                // Стабильность
+                const wakeLogs = logs.filter(l => l.type === 'Wake Time');
+                const contactLogs = logs.filter(l => l.type === 'First Contact');
+                const startLogs = logs.filter(l => l.type === 'Start Activity');
+                const bedLogs = logs.filter(l => l.type === 'Bedtime');
+
+                const allWake = wakeLogs.map(l => l.value).filter(v => v);
+                const allContact = contactLogs.map(l => l.value).filter(v => v);
+                const allStart = startLogs.map(l => l.value).filter(v => v);
+                const allBed = bedLogs.map(l => l.value).filter(v => v);
+
+                let stability = 0;
+                let validFields = 0;
+
+                [allWake, allContact, allStart, allBed].forEach(times => {
+                    if (times.length < 2) return;
+                    const minutes = times.map(t => {
+                        const [h, m] = t.split(':').map(Number);
+                        return h * 60 + m;
+                    });
+                    const mean = minutes.reduce((a, b) => a + b, 0) / minutes.length;
+                    const variance = minutes.reduce((a, b) => a + (b - mean) ** 2, 0) / minutes.length;
+                    const stdDev = Math.sqrt(variance);
+                    const normalized = Math.min(stdDev / 180, 1);
+                    stability += (1 - normalized);
+                    validFields++;
+                });
+
+                let stabilityPercent = 0;
+                if (validFields > 0) {
+                    stabilityPercent = Math.max(0, Math.round((stability / validFields) * 100));
+                }
+
+                stabilityScoreEl.textContent = stabilityPercent + '%';
+                ringInner.textContent = stabilityPercent + '%';
+                const percent = Math.min(stabilityPercent, 100);
+                ringVisual.style.background =
+                    `conic-gradient(#4A6CF7 0% ${percent}%, #E2E8F0 ${percent}% 100%)`;
+
+                if (stabilityPercent >= 70) {
+                    stabilityLabel.textContent = '🌟 Стабильный ритм';
+                    stabilityDesc.textContent = 'Отличная последовательность в ваших основных ритмах!';
+                } else if (stabilityPercent >= 50) {
+                    stabilityLabel.textContent = '🔄 Умеренно стабильный';
+                    stabilityDesc.textContent = 'Некоторые вариации — сосредоточьтесь на регулярном времени сна и пробуждения.';
+                } else if (stabilityPercent > 0) {
+                    stabilityLabel.textContent = '⚠️ Требует внимания';
+                    stabilityDesc.textContent = 'Попробуйте стабилизировать время пробуждения, начала активности и сна.';
+                } else {
+                    stabilityLabel.textContent = '📊 Недостаточно данных';
+                    stabilityDesc.textContent = 'Добавьте больше записей, чтобы увидеть тенденцию стабильности.';
+                }
+
+                const selectedLogs = getLogsForDate(selectedDate);
+                historyCount.textContent = `${selectedLogs.length} запись${selectedLogs.length > 1 ? 'ей' : ''}`;
+            }
+
+            // ---- Получение записей за дату ----
+            function getLogsForDate(date) {
+                return logs.filter(l => l.date === date);
+            }
+
+            // ---- Отрисовка истории ----
+            function renderHistory() {
+                const selectedLogs = getLogsForDate(selectedDate);
+
+                if (selectedLogs.length === 0) {
+                    entriesList.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-icon">📭</div>
+                            <p>Нет записей за ${formatDateDisplay(selectedDate)}. Начните отправлять метрики!</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                let html = '';
+                selectedLogs.forEach((log, idx) => {
+                    const actualIndex = logs.indexOf(log);
+                    const displayValue = getValueDisplay(log.value);
+                    const isEditing = editState && editState.index === actualIndex;
+                    html += `
+                        <div class="entry-item ${isEditing ? 'editing' : ''}">
+                            <div class="entry-time">${log.time || '—'}</div>
+                            <div class="entry-type">${log.type || '—'}</div>
+                            <div class="entry-value">${displayValue}</div>
+                            <div class="entry-actions">
+                                <button class="edit-btn" data-index="${actualIndex}" title="Редактировать">✏️</button>
+                                <button class="delete-btn" data-index="${actualIndex}" title="Удалить">🗑️</button>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                entriesList.innerHTML = html;
+
+                entriesList.querySelectorAll('.edit-btn').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const idx = parseInt(this.dataset.index, 10);
+                        const log = logs[idx];
+                        if (log) {
+                            setEditState(idx, log.type, log.value);
+                        }
+                    });
+                });
+
+                entriesList.querySelectorAll('.delete-btn').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const idx = parseInt(this.dataset.index, 10);
+                        deleteLog(idx);
+                    });
+                });
+            }
+
+            // ---- Графики ----
+            function destroyCharts() {
+                Object.keys(chartInstances).forEach(key => {
+                    if (chartInstances[key]) {
+                        chartInstances[key].destroy();
+                        delete chartInstances[key];
+                    }
+                });
+                chartInstances = {};
+            }
+
+            function timeToMinutes(timeStr) {
+                if (!timeStr) return null;
+                const parts = timeStr.split(':');
+                if (parts.length !== 2) return null;
+                const h = parseInt(parts[0]);
+                const m = parseInt(parts[1]);
+                if (isNaN(h) || isNaN(m)) return null;
+                return h * 60 + m;
+            }
+
+            function minutesToTime(minutes) {
+                if (minutes === null || minutes === undefined || isNaN(minutes)) return '';
+                const h = Math.floor(minutes / 60);
+                const m = Math.round(minutes % 60);
+                return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+            }
+
+            function getDateRange(logsData) {
+                if (logsData.length === 0) return [];
+                const dates = logsData.map(l => l.date);
+                const uniqueDates = [...new Set(dates)].sort();
+                return uniqueDates;
+            }
+
+            function createTrendChart(canvas, label, logsData, isTime = false, color = '#4A6CF7') {
+                if (!canvas) return;
+
+                if (logsData.length === 0) {
+                    const ctx = canvas.getContext('2d');
+                    chartInstances[label] = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: [],
+                            datasets: [{
+                                label: label,
+                                data: [],
+                                borderColor: color,
+                                backgroundColor: color + '20',
+                                fill: false,
+                                tension: 0.2,
+                                pointRadius: 5,
+                                pointBackgroundColor: color,
+                                pointBorderColor: '#fff',
+                                pointBorderWidth: 2,
+                                spanGaps: true
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: true,
+                            plugins: { legend: { display: false } },
+                            scales: {
+                                x: { title: { display: true, text: 'Дата' } },
+                                y: { title: { display: true, text: label } }
+                            }
+                        }
+                    });
+                    return;
+                }
+
+                const allDates = getDateRange(logsData);
+                const dateValueMap = {};
+                logsData.forEach(log => {
+                    if (!dateValueMap[log.date]) {
+                        dateValueMap[log.date] = [];
+                    }
+                    let value = log.value;
+                    if (isTime) {
+                        value = timeToMinutes(log.value);
+                    } else {
+                        value = parseFloat(log.value);
+                    }
+                    if (value !== null && value !== undefined && !isNaN(value)) {
+                        dateValueMap[log.date].push(value);
+                    }
+                });
+
+                const dataPoints = [];
+                allDates.forEach(date => {
+                    if (dateValueMap[date] && dateValueMap[date].length > 0) {
+                        dateValueMap[date].forEach(val => {
+                            dataPoints.push({ x: date, y: val });
+                        });
+                    } else {
+                        dataPoints.push({ x: date, y: null });
+                    }
+                });
+
+                dataPoints.sort((a, b) => a.x.localeCompare(b.x));
+
+                const labels = dataPoints.map(d => formatDateShort(d.x));
+                const values = dataPoints.map(d => d.y);
+
+                const validValues = values.filter(v => v !== null && v !== undefined && !isNaN(v));
+                let yMin = 0;
+                let yMax = isTime ? 1440 : 10;
+                if (validValues.length > 0) {
+                    const minVal = Math.min(...validValues);
+                    const maxVal = Math.max(...validValues);
+                    if (isTime) {
+                        const padding = 30;
+                        yMin = Math.max(0, minVal - padding);
+                        yMax = Math.min(1440, maxVal + padding);
+                    } else {
+                        const padding = 1;
+                        yMin = Math.max(0, minVal - padding);
+                        yMax = Math.max(10, maxVal + padding);
+                    }
+                }
+
+                const ctx = canvas.getContext('2d');
+
+                const chartConfig = {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: label,
+                            data: values,
+                            borderColor: color,
+                            backgroundColor: color + '20',
+                            fill: false,
+                            tension: 0.2,
+                            pointRadius: 5,
+                            pointBackgroundColor: color,
+                            pointBorderColor: '#fff',
+                            pointBorderWidth: 2,
+                            spanGaps: false
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const rawValue = context.parsed.y;
+                                        if (rawValue === null || rawValue === undefined) return 'Нет данных';
+                                        if (isTime) {
+                                            return minutesToTime(rawValue);
+                                        }
+                                        return rawValue.toString();
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                title: { display: true, text: 'Дата', font: { weight: 'bold' } },
+                                ticks: { autoSkip: true, maxTicksLimit: 15, maxRotation: 45, minRotation: 30 }
+                            },
+                            y: {
+                                title: { display: true, text: label, font: { weight: 'bold' } },
+                                min: yMin,
+                                max: yMax,
+                                ticks: {
+                                    callback: function(value) {
+                                        if (isTime) {
+                                            return minutesToTime(value);
+                                        }
+                                        return value;
+                                    },
+                                    stepSize: isTime ? 30 : 1
+                                }
+                            }
+                        }
+                    }
+                };
+
+                chartInstances[label] = new Chart(ctx, chartConfig);
+            }
+
+            function renderCharts() {
+                destroyCharts();
+
+                const wakeLogs = logs.filter(l => l.type === 'Wake Time');
+                const contactLogs = logs.filter(l => l.type === 'First Contact');
+                const startLogs = logs.filter(l => l.type === 'Start Activity');
+                const bedLogs = logs.filter(l => l.type === 'Bedtime');
+                const moodLogs = logs.filter(l => l.type === 'Mood');
+                const energyLogs = logs.filter(l => l.type === 'Energy');
+
+                createTrendChart(wakeCanvas, 'Время пробуждения', wakeLogs, true, '#4A6CF7');
+                createTrendChart(firstContactCanvas, 'Первый контакт', contactLogs, true, '#6B8AFF');
+                createTrendChart(startActivityCanvas, 'Начало активности', startLogs, true, '#7C5CFC');
+                createTrendChart(bedtimeCanvas, 'Время сна', bedLogs, true, '#3458D6');
+                createTrendChart(moodCanvas, 'Настроение', moodLogs, false, '#6BCB77');
+                createTrendChart(energyCanvas, 'Энергия', energyLogs, false, '#FF6B6B');
+
+                // Частота проблем
+                const issueLogs = logs.filter(l => l.type === 'Issues');
+                const issueCounts = {};
+                issueLogs.forEach(l => {
+                    if (Array.isArray(l.value)) {
+                        l.value.forEach(issue => {
+                            issueCounts[issue] = (issueCounts[issue] || 0) + 1;
+                        });
+                    }
+                });
+                const issueLabels = Object.keys(issueCounts);
+                const issueData = Object.values(issueCounts);
+                if (issueLabels.length > 0 && issuesCanvas) {
+                    const ctx = issuesCanvas.getContext('2d');
+                    chartInstances.issues = new Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels: issueLabels,
+                            datasets: [{
+                                label: 'Частота',
+                                data: issueData,
+                                backgroundColor: ['#4A6CF7', '#7C5CFC', '#F7A072', '#6BCB77'],
+                                borderRadius: 4
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: true,
+                            plugins: { legend: { display: false } },
+                            scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+                        }
+                    });
+                }
+
+                // Типы активности
+                const typeLogs = logs.filter(l => l.type === 'Activity Type');
+                const typeCounts = {};
+                typeLogs.forEach(l => {
+                    const type = l.value || 'Other';
+                    typeCounts[type] = (typeCounts[type] || 0) + 1;
+                });
+                const typeLabels = Object.keys(typeCounts);
+                const typeData = Object.values(typeCounts);
+                if (typeLabels.length > 0 && activityTypeCanvas) {
+                    const colors = ['#4A6CF7', '#7C5CFC', '#F7A072', '#6BCB77', '#FFD93D', '#38B2AC'];
+                    const ctx = activityTypeCanvas.getContext('2d');
+                    chartInstances.activityType = new Chart(ctx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: typeLabels,
+                            datasets: [{
+                                data: typeData,
+                                backgroundColor: colors.slice(0, typeLabels.length),
+                                borderWidth: 1
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: true,
+                            plugins: { legend: { position: 'bottom' } }
+                        }
+                    });
+                }
+            }
+
+            // ---- Обновление интерфейса ----
+            function refreshUI() {
+                computeStats();
+                renderHistory();
+                renderCharts();
+            }
+
+            // ---- Toast уведомления ----
+            let toastTimeout = null;
+
+            function showToast(message, type = 'info') {
+                if (!toast) return;
+                toast.textContent = message;
+                toast.className = 'toast ' + type + ' show';
+                clearTimeout(toastTimeout);
+                toastTimeout = setTimeout(() => {
+                    toast.classList.remove('show');
+                }, 2500);
+            }
+
+            // ---- Обработчики отправки ----
+            function sendMetric(type, value, field) {
+                if (!value || value === '') {
+                    showToast(`⚠️ Пожалуйста, введите значение для ${type}`, 'error');
+                    return;
+                }
+
+                if (editState && editState.type === type) {
+                    updateLog(editState.index, type, value);
+                    if (field) field.value = '';
+                    return;
+                }
+
+                addLog(type, value);
+                if (field) field.value = '';
+            }
+
+            function sendIssuesHandler() {
+                const issues = getIssueLabels();
+                if (issues.length === 0) {
+                    showToast('⚠️ Пожалуйста, выберите хотя бы одну проблему', 'error');
+                    return;
+                }
+                if (editState && editState.type === 'Issues') {
+                    updateLog(editState.index, 'Issues', issues);
+                    issueGrief.checked = false;
+                    issueDispute.checked = false;
+                    issueTransition.checked = false;
+                    issueDeficit.checked = false;
+                    return;
+                }
+                addLog('Issues', issues);
+                issueGrief.checked = false;
+                issueDispute.checked = false;
+                issueTransition.checked = false;
+                issueDeficit.checked = false;
+            }
+
+            // ---- Синхронизация ----
+            async function syncData() {
+                if (isSyncing) return;
+                isSyncing = true;
+                syncStatus.className = 'sync-status syncing';
+                syncStatus.textContent = '🔄 Синхронизация...';
+                syncBtn.disabled = true;
+
+                try {
+                    await loadLogsFromSupabase();
+                    refreshUI();
+                    showToast('✅ Синхронизировано с облаком!', 'success');
+                    setSyncStatus('online', '✅ Подключено');
+                } catch (error) {
+                    console.error('Ошибка синхронизации:', error);
+                    setSyncStatus('offline', '❌ Ошибка синхронизации');
+                    showToast('❌ Ошибка синхронизации. Проверьте подключение.', 'error');
+                } finally {
+                    isSyncing = false;
+                    syncBtn.disabled = false;
+                }
+            }
+
+            // ---- Инициализация ----
+            async function init() {
+                // Проверка наличия необходимых элементов
+                if (!document.getElementById('app')) {
+                    console.error('❌ Приложение не найдено');
+                    return;
+                }
+
+                // Показываем статус подключения
+                setSyncStatus('', '⏳ Подключение...');
+
+                // Аутентификация в Supabase
+                const authSuccess = await signInAnonymously();
+                if (authSuccess) {
+                    await loadLogsFromSupabase();
+                } else {
+                    showToast('⚠️ Не удалось подключиться к облаку. Используются локальные данные.', 'error');
+                    setSyncStatus('offline', '⚠️ Офлайн режим');
+                }
+
+                // Установка сегодняшней даты
+                const today = getToday();
+                if (datePicker) datePicker.value = today;
+                selectedDate = today;
+                if (logDateBadge) logDateBadge.textContent = formatDateShort(today);
+                if (historyDateLabel) historyDateLabel.textContent = formatDateDisplay(today);
+
+                // Дата-пикер
+                if (datePicker) {
+                    datePicker.addEventListener('change', function(e) {
+                        e.stopPropagation();
+                        if (this.value) {
+                            setSelectedDate(this.value);
+                        }
+                    });
+                }
+
+                // Кнопка "Сегодня"
+                if (goToTodayBtn) {
+                    goToTodayBtn.addEventListener('click', goToToday);
+                }
+
+                // Кнопка синхронизации
+                if (syncBtn) {
+                    syncBtn.addEventListener('click', syncData);
+                }
+
+                // Установка времени по умолчанию
+                const now = new Date();
+                const h = String(now.getHours()).padStart(2, '0');
+                const m = String(now.getMinutes()).padStart(2, '0');
+                const defaultTime = h + ':' + m;
+                if (wakeTime && !wakeTime.value) wakeTime.value = defaultTime;
+                if (firstContact && !firstContact.value) firstContact.value = defaultTime;
+                if (startActivity && !startActivity.value) startActivity.value = defaultTime;
+                if (bedtime && !bedtime.value) bedtime.value = '22:30';
+
+                // Отображение значений слайдеров
+                if (moodSlider) {
+                    moodSlider.addEventListener('input', function() {
+                        if (moodDisplay) moodDisplay.textContent = this.value;
+                    });
+                }
+                if (energySlider) {
+                    energySlider.addEventListener('input', function() {
+                        if (energyDisplay) energyDisplay.textContent = this.value;
+                    });
+                }
+
+                // Кнопки отправки
+                if (sendWakeBtn) {
+                    sendWakeBtn.addEventListener('click', () => sendMetric('Wake Time', wakeTime ? wakeTime.value : '',
+                        wakeTime));
+                }
+                if (sendFirstContactBtn) {
+                    sendFirstContactBtn.addEventListener('click', () => sendMetric('First Contact', firstContact ?
+                        firstContact.value : '', firstContact));
+                }
+                if (sendStartActivityBtn) {
+                    sendStartActivityBtn.addEventListener('click', () => sendMetric('Start Activity', startActivity ?
+                        startActivity.value : '', startActivity));
+                }
+                if (sendBedtimeBtn) {
+                    sendBedtimeBtn.addEventListener('click', () => sendMetric('Bedtime', bedtime ? bedtime.value : '',
+                        bedtime));
+                }
+                if (sendActivityTypeBtn) {
+                    sendActivityTypeBtn.addEventListener('click', () => sendMetric('Activity Type', activityType ?
+                        activityType.value : '', activityType));
+                }
+
+                if (sendMoodBtn) {
+                    sendMoodBtn.addEventListener('click', () => {
+                        const val = moodSlider ? moodSlider.value : 6;
+                        sendMetric('Mood', parseInt(val, 10));
+                    });
+                }
+
+                if (sendEnergyBtn) {
+                    sendEnergyBtn.addEventListener('click', () => {
+                        const val = energySlider ? energySlider.value : 6;
+                        sendMetric('Energy', parseInt(val, 10));
+                    });
+                }
+
+                if (sendIssuesBtn) {
+                    sendIssuesBtn.addEventListener('click', sendIssuesHandler);
+                }
+
+                if (sendNotesBtn) {
+                    sendNotesBtn.addEventListener('click', () => {
+                        const val = notes ? notes.value.trim() : '';
+                        if (!val) {
+                            showToast('⚠️ Пожалуйста, напишите заметку', 'error');
+                            return;
+                        }
+                        sendMetric('Note', val, notes);
+                    });
+                }
+
+                if (cancelEditBtn) {
+                    cancelEditBtn.addEventListener('click', () => {
+                        clearEditState();
+                        showToast('✖️ Редактирование отменено', 'info');
+                    });
+                }
+
+                if (clearAllBtn) {
+                    clearAllBtn.addEventListener('click', clearAll);
+                }
+                if (exportBtn) {
+                    exportBtn.addEventListener('click', exportJSON);
+                }
+
+                refreshUI();
+
+                document.addEventListener('keydown', function(e) {
+                    if (e.key === 'Escape') {
+                        if (editState) {
+                            clearEditState();
+                            showToast('✖️ Редактирование отменено', 'info');
+                        }
+                    }
+                    if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') {
+                        const metricRow = e.target.closest('.metric-row');
+                        if (metricRow) {
+                            const sendBtn = metricRow.querySelector('.send-btn');
+                            if (sendBtn) sendBtn.click();
+                        }
+                    }
+                });
+
+                isInitialized = true;
+                console.log('✅ Приложение инициализировано');
+            }
+
+            // Проверка загрузки библиотек
+            if (typeof Chart !== 'undefined' && typeof window.supabase !== 'undefined') {
+                init();
+            } else {
+                // Ожидание загрузки библиотек
+                let checks = 0;
+                const checkLibraries = setInterval(() => {
+                    checks++;
+                    if (typeof Chart !== 'undefined' && typeof window.supabase !== 'undefined') {
+                        clearInterval(checkLibraries);
+                        init();
+                    } else if (checks > 20) {
+                        clearInterval(checkLibraries);
+                        document.body.innerHTML = `
+                            <div style="padding:40px;text-align:center;font-family:Arial,sans-serif;">
+                                <h2>❌ Не удалось загрузить необходимые библиотеки</h2>
+                                <p>Проверьте интернет-соединение и обновите страницу.</p>
+                                <p style="font-size:12px;color:#888;margin-top:20px;">Если проблема сохраняется, откройте консоль браузера (F12) для просмотра ошибок.</p>
+                            </div>
+                        `;
+                    }
+                }, 500);
+            }
+        })();
+    </script>
+</body>
+</html>
