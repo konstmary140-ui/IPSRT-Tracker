@@ -1,0 +1,3424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>IPSRT Tracker - Offline Sync</title>
+    
+    <!-- Supabase Library -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
+    </script>
+    
+    <!-- Chart.js Library -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js">
+    </script>
+    
+    <style>
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --primary: #7C5CFC;
+            --primary-light: #9F7AEA;
+            --primary-dark: #6B46C1;
+            --secondary: #ED64A6;
+            --secondary-light: #F687B3;
+            --secondary-dark: #D53F8C;
+            --tertiary: #B794F4;
+            --tertiary-light: #D6BCFA;
+            --bg: #FAF5FF;
+            --card-bg: #FFFFFF;
+            --text: #2D1B4E;
+            --text-light: #6B46A0;
+            --border: #E9D8FD;
+            --shadow: 0 8px 30px rgba(124, 92, 252, 0.15);
+            --radius: 16px;
+            --radius-sm: 10px;
+            --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            --font: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            --success: #48BB78;
+            --danger: #FC8181;
+            --orange: #F6AD55;
+            --teal: #38B2AC;
+            --edit-bg: #FFF8E7;
+            --edit-border: #F6E05E;
+            --pending: #F6E05E;
+            --synced: #48BB78;
+        }
+
+        body {
+            font-family: var(--font);
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: var(--bg);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--primary-light);
+            border-radius: 10px;
+        }
+
+        .app-container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .app-header {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 24px;
+            background: var(--card-bg);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            margin-bottom: 24px;
+        }
+        .app-header .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .app-header .brand-icon {
+            width: 42px;
+            height: 42px;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-size: 22px;
+            font-weight: 700;
+        }
+        .app-header h1 {
+            font-size: 20px;
+            font-weight: 700;
+            letter-spacing: -0.3px;
+            color: var(--text);
+        }
+        .app-header h1 span {
+            color: var(--primary);
+        }
+        .app-header .subtitle {
+            font-size: 13px;
+            color: var(--text-light);
+            font-weight: 400;
+        }
+        .app-header .sync-status {
+            font-size: 11px;
+            padding: 4px 12px;
+            border-radius: 20px;
+            background: var(--bg);
+            color: var(--text-light);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .app-header .sync-status.online {
+            background: var(--success);
+            color: #fff;
+        }
+        .app-header .sync-status.offline {
+            background: var(--danger);
+            color: #fff;
+        }
+        .app-header .sync-status.syncing {
+            background: var(--orange);
+            color: #fff;
+            animation: pulse 1s infinite;
+        }
+        .app-header .sync-status.pending {
+            background: var(--pending);
+            color: var(--text);
+        }
+
+        @keyframes pulse {
+            0%,
+            100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        .header-date {
+            background: var(--bg);
+            padding: 6px 14px;
+            border-radius: 30px;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--primary-dark);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: var(--transition);
+            user-select: none;
+            border: none;
+            cursor: pointer;
+            font-family: var(--font);
+        }
+        .header-date:hover {
+            background: var(--primary);
+            color: #fff;
+            transform: scale(1.02);
+        }
+        .header-date .date-click-hint {
+            font-size: 10px;
+            opacity: 0.6;
+            font-weight: 400;
+        }
+        .header-date input[type="date"] {
+            background: transparent;
+            border: none;
+            color: inherit;
+            font-size: 14px;
+            font-weight: 500;
+            font-family: var(--font);
+            cursor: pointer;
+            padding: 0;
+            margin: 0;
+            width: auto;
+            min-width: 0;
+            outline: none;
+        }
+        .header-date input[type="date"]::-webkit-calendar-picker-indicator {
+            filter: invert(0.4);
+            cursor: pointer;
+            padding: 4px;
+        }
+        .header-date:hover input[type="date"]::-webkit-calendar-picker-indicator {
+            filter: invert(1);
+        }
+        .header-date input[type="date"]::-webkit-datetime-edit {
+            padding: 0;
+            color: inherit;
+        }
+        .header-date input[type="date"]:focus {
+            outline: none;
+        }
+        #selectedDateDisplay {
+            cursor: pointer;
+            padding: 0 4px;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .btn-today {
+            background: linear-gradient(135deg, var(--secondary), var(--secondary-dark));
+            color: #fff;
+            border: none;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            font-family: var(--font);
+        }
+        .btn-today:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 14px rgba(237, 100, 166, 0.4);
+        }
+        .btn-sync {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: #fff;
+            border: none;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            font-family: var(--font);
+        }
+        .btn-sync:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 14px rgba(124, 92, 252, 0.4);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(10, 1fr);
+            gap: 10px;
+            margin-bottom: 24px;
+        }
+        @media (max-width: 1200px) {
+            .stats-grid {
+                grid-template-columns: repeat(5, 1fr);
+            }
+        }
+        @media (max-width: 768px) {
+            .stats-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+        @media (max-width: 480px) {
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        @media (max-width: 360px) {
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        .stat-card {
+            background: var(--card-bg);
+            border-radius: var(--radius-sm);
+            padding: 8px 10px;
+            box-shadow: var(--shadow);
+            text-align: center;
+            transition: var(--transition);
+            border: 1px solid var(--border);
+        }
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(124, 92, 252, 0.2);
+        }
+        .stat-card .stat-value {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--primary);
+        }
+        .stat-card .stat-label {
+            font-size: 8px;
+            color: var(--text-light);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 2px;
+            font-weight: 600;
+        }
+        .stat-card .stat-sub {
+            font-size: 9px;
+            color: var(--text-light);
+            margin-top: 2px;
+        }
+        .stat-card.purple {
+            border-top: 3px solid var(--primary);
+        }
+        .stat-card.pink {
+            border-top: 3px solid var(--secondary);
+        }
+        .stat-card.lavender {
+            border-top: 3px solid var(--tertiary);
+        }
+        .stat-card.green {
+            border-top: 3px solid var(--success);
+        }
+        .stat-card.orange {
+            border-top: 3px solid var(--orange);
+        }
+        .stat-card.teal {
+            border-top: 3px solid var(--teal);
+        }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+        @media (max-width: 820px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 16px 18px 20px;
+            transition: var(--transition);
+            border: 1px solid var(--border);
+        }
+        .card:hover {
+            box-shadow: 0 12px 40px rgba(124, 92, 252, 0.15);
+        }
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .card-header h2 {
+            font-size: 15px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text);
+        }
+        .card-header h2 .emoji {
+            font-size: 18px;
+        }
+        .card-header .badge {
+            font-size: 10px;
+            background: var(--bg);
+            padding: 3px 10px;
+            border-radius: 20px;
+            color: var(--text-light);
+            border: 1px solid var(--border);
+        }
+
+        .metric-group {
+            margin-bottom: 12px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border);
+        }
+        .metric-group:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+        .metric-group label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text);
+            margin-bottom: 4px;
+        }
+        .metric-group .metric-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .metric-group .metric-row input[type="time"],
+        .metric-group .metric-row input[type="text"],
+        .metric-group .metric-row select {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1.5px solid var(--border);
+            border-radius: var(--radius-sm);
+            font-size: 14px;
+            font-family: var(--font);
+            background: #FAFBFF;
+            transition: var(--transition);
+            color: var(--text);
+            min-width: 0;
+        }
+        .metric-group .metric-row input:focus,
+        .metric-group .metric-row select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(124, 92, 252, 0.15);
+            background: #fff;
+        }
+        .metric-group .metric-row input.editing {
+            border-color: var(--edit-border);
+            background: var(--edit-bg);
+            box-shadow: 0 0 0 3px rgba(246, 224, 94, 0.25);
+        }
+        .metric-group .metric-row .send-btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: var(--radius-sm);
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-family: var(--font);
+        }
+        .metric-group .metric-row .send-btn:hover {
+            transform: translateY(-1px);
+        }
+        .metric-group .metric-row .send-btn:active {
+            transform: translateY(0);
+        }
+
+        .send-btn-lavender {
+            background: linear-gradient(135deg, var(--tertiary), var(--primary-light));
+            color: #fff;
+        }
+        .send-btn-lavender:hover {
+            box-shadow: 0 4px 14px rgba(183, 148, 244, 0.4);
+        }
+
+        .send-btn-pink {
+            background: linear-gradient(135deg, var(--secondary), var(--secondary-dark));
+            color: #fff;
+        }
+        .send-btn-pink:hover {
+            box-shadow: 0 4px 14px rgba(237, 100, 166, 0.4);
+        }
+
+        .send-btn-update {
+            background: var(--edit-border);
+            color: var(--text);
+            box-shadow: 0 0 0 2px var(--edit-border);
+        }
+        .send-btn-update:hover {
+            box-shadow: 0 4px 14px rgba(246, 224, 94, 0.5);
+        }
+
+        .slider-wrap {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex: 1;
+        }
+        .slider-wrap input[type="range"] {
+            flex: 1;
+            -webkit-appearance: none;
+            height: 6px;
+            border-radius: 10px;
+            outline: none;
+        }
+        .slider-wrap input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: var(--primary);
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(124, 92, 252, 0.3);
+            border: 2px solid #fff;
+        }
+        .slider-wrap .value {
+            font-size: 20px;
+            font-weight: 700;
+            min-width: 32px;
+            text-align: center;
+            color: var(--primary);
+        }
+        #moodSlider {
+            background: linear-gradient(to right, #FC8181, #F6AD55, #48BB78);
+        }
+        #energySlider {
+            background: linear-gradient(to right, #A8D0E6, #F3B0A0, #E27D60);
+        }
+        #anxietySlider {
+            background: linear-gradient(to right, #E8D5F5, #D6BCFA, #9F7AEA);
+        }
+        #irritabilitySlider {
+            background: linear-gradient(to right, #FED7E2, #FBB6CE, #ED64A6);
+        }
+
+        .issue-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        @media (max-width: 480px) {
+            .issue-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        .issue-check {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: #FAFBFF;
+            border-radius: var(--radius-sm);
+            border: 1.5px solid var(--border);
+            transition: var(--transition);
+            cursor: pointer;
+        }
+        .issue-check:hover {
+            border-color: var(--primary-light);
+            background: var(--bg);
+        }
+        .issue-check input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            accent-color: var(--primary);
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+        .issue-check label {
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            color: var(--text);
+        }
+
+        .btn-outline {
+            background: transparent;
+            color: var(--primary);
+            border: 1.5px solid var(--primary);
+            padding: 6px 14px;
+            border-radius: var(--radius-sm);
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            font-family: var(--font);
+        }
+        .btn-outline:hover {
+            background: var(--primary);
+            color: #fff;
+        }
+        .btn-danger-outline {
+            background: transparent;
+            color: var(--danger);
+            border: 1.5px solid var(--danger);
+            padding: 6px 14px;
+            border-radius: var(--radius-sm);
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            font-family: var(--font);
+        }
+        .btn-danger-outline:hover {
+            background: var(--danger);
+            color: #fff;
+        }
+        .btn-sm {
+            padding: 4px 10px;
+            font-size: 11px;
+        }
+
+        .log-list {
+            max-height: 150px;
+            overflow-y: auto;
+            margin-top: 6px;
+            padding: 6px;
+            background: var(--bg);
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border);
+        }
+        .log-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 8px;
+            font-size: 12px;
+            border-bottom: 1px solid var(--border);
+            align-items: center;
+        }
+        .log-item:last-child {
+            border-bottom: none;
+        }
+        .log-item .log-time {
+            font-weight: 600;
+            color: var(--primary);
+            min-width: 55px;
+            font-size: 12px;
+        }
+        .log-item .log-text {
+            color: var(--text);
+            flex: 1;
+            margin: 0 8px;
+            font-size: 12px;
+        }
+        .log-item .log-status {
+            font-size: 10px;
+            margin-right: 4px;
+        }
+        .log-item .log-actions {
+            display: flex;
+            gap: 2px;
+        }
+        .log-item .log-actions button {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 12px;
+            padding: 2px 4px;
+            border-radius: 4px;
+            transition: var(--transition);
+            color: var(--text-light);
+        }
+        .log-item .log-actions button:hover {
+            background: var(--bg);
+        }
+        .log-item .log-actions .time-edit-btn:hover {
+            color: var(--primary);
+        }
+        .log-item .log-actions .delete-btn:hover {
+            color: var(--danger);
+        }
+
+        .entries-list {
+            max-height: 500px;
+            overflow-y: auto;
+            margin-top: 6px;
+        }
+        .entry-item {
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 6px;
+            transition: var(--transition);
+            border-radius: 6px;
+            font-size: 12px;
+        }
+        .entry-item:hover {
+            background: var(--bg);
+        }
+        .entry-item:last-child {
+            border-bottom: none;
+        }
+        .entry-item .entry-time {
+            font-weight: 600;
+            color: var(--primary);
+            min-width: 65px;
+            font-size: 12px;
+        }
+        .entry-item .entry-type {
+            font-weight: 600;
+            color: var(--text-light);
+            min-width: 60px;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        .entry-item .entry-value {
+            flex: 1;
+            color: var(--text);
+            word-break: break-word;
+            font-size: 12px;
+        }
+        .entry-item .entry-status {
+            font-size: 10px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 2px 6px;
+            border-radius: 12px;
+            font-weight: 500;
+        }
+        .entry-item .entry-status.pending {
+            color: #8B7A00;
+            background: #FFF8E1;
+        }
+        .entry-item .entry-status.synced {
+            color: #1E7A4F;
+            background: #E8F5E9;
+        }
+        .entry-item .entry-actions {
+            display: flex;
+            gap: 2px;
+        }
+        .entry-item .entry-actions button {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 13px;
+            padding: 2px 4px;
+            border-radius: 4px;
+            transition: var(--transition);
+            color: var(--text-light);
+        }
+        .entry-item .entry-actions button:hover {
+            background: var(--bg);
+            color: var(--text);
+        }
+        .entry-item .entry-actions .edit-btn:hover {
+            color: var(--secondary);
+        }
+        .entry-item .entry-actions .time-edit-btn:hover {
+            color: var(--primary);
+        }
+        .entry-item .entry-actions .delete-btn:hover {
+            color: var(--danger);
+        }
+
+        .entry-item.editing {
+            background: var(--edit-bg);
+            border-left: 3px solid var(--edit-border);
+        }
+        .entry-item.offline {
+            border-left: 3px solid var(--pending);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 16px 12px;
+            color: var(--text-light);
+        }
+        .empty-state .empty-icon {
+            font-size: 28px;
+            margin-bottom: 6px;
+            opacity: 0.5;
+        }
+        .empty-state p {
+            font-size: 12px;
+        }
+
+        .stability-ring {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            padding: 8px 0;
+            flex-wrap: wrap;
+        }
+        .stability-ring .ring {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            font-weight: 700;
+            color: #fff;
+            background: conic-gradient(var(--primary) 0% 70%, var(--border) 70% 100%);
+            position: relative;
+        }
+        .stability-ring .ring .inner {
+            width: 52px;
+            height: 52px;
+            border-radius: 50%;
+            background: var(--card-bg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            color: var(--text);
+        }
+        .stability-ring .ring-details {
+            font-size: 13px;
+            color: var(--text-light);
+        }
+        .stability-ring .ring-details strong {
+            color: var(--text);
+            display: block;
+            font-size: 16px;
+        }
+
+        .time-edit-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.4);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        .time-edit-overlay.active {
+            display: flex;
+        }
+        .time-edit-dialog {
+            background: var(--card-bg);
+            border-radius: var(--radius);
+            padding: 24px 30px;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            animation: fadeInUp 0.3s ease;
+        }
+        .time-edit-dialog h3 {
+            font-size: 16px;
+            margin-bottom: 16px;
+            color: var(--text);
+        }
+        .time-edit-dialog .time-input-group {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .time-edit-dialog .time-input-group label {
+            font-weight: 500;
+            color: var(--text-light);
+        }
+        .time-edit-dialog .time-input-group input[type="time"] {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1.5px solid var(--border);
+            border-radius: var(--radius-sm);
+            font-size: 16px;
+            font-family: var(--font);
+            background: #FAFBFF;
+            color: var(--text);
+        }
+        .time-edit-dialog .time-input-group input[type="time"]:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(124, 92, 252, 0.15);
+        }
+        .time-edit-dialog .dialog-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+        .time-edit-dialog .dialog-actions .btn {
+            padding: 8px 20px;
+            border: none;
+            border-radius: var(--radius-sm);
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            font-family: var(--font);
+        }
+        .time-edit-dialog .dialog-actions .btn-primary {
+            background: var(--primary);
+            color: #fff;
+        }
+        .time-edit-dialog .dialog-actions .btn-primary:hover {
+            box-shadow: 0 4px 14px rgba(124, 92, 252, 0.4);
+        }
+        .time-edit-dialog .dialog-actions .btn-secondary {
+            background: var(--bg);
+            color: var(--text);
+        }
+        .time-edit-dialog .dialog-actions .btn-secondary:hover {
+            background: var(--border);
+        }
+
+        .charts-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 24px;
+            margin-top: 24px;
+        }
+        .charts-grid .card {
+            padding: 14px 16px 18px;
+        }
+        .charts-grid .card canvas {
+            max-height: 200px;
+            max-width: 100%;
+        }
+        .chart-full {
+            grid-column: 1 / -1;
+        }
+        @media (max-width: 1024px) {
+            .charts-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+        @media (max-width: 700px) {
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: var(--text);
+            color: #fff;
+            padding: 12px 20px;
+            border-radius: var(--radius-sm);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+            font-size: 13px;
+            font-weight: 500;
+            transform: translateY(80px);
+            opacity: 0;
+            transition: all 0.4s ease;
+            z-index: 999;
+        }
+        .toast.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+        .toast.success {
+            background: var(--success);
+        }
+        .toast.error {
+            background: var(--danger);
+        }
+        .toast.info {
+            background: var(--primary);
+        }
+        .toast.warning {
+            background: var(--orange);
+        }
+
+        .edit-indicator {
+            display: none;
+            font-size: 12px;
+            color: var(--secondary);
+            font-weight: 600;
+            background: var(--edit-bg);
+            padding: 2px 10px;
+            border-radius: 12px;
+            border: 1px solid var(--edit-border);
+        }
+        .edit-indicator.active {
+            display: inline-block;
+        }
+
+        .chart-note {
+            font-size: 11px;
+            color: var(--text-light);
+            text-align: center;
+            margin-top: 6px;
+            font-style: italic;
+        }
+
+        @media (max-width: 600px) {
+            .app-header {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 10px;
+                padding: 14px;
+            }
+            .app-header .brand h1 {
+                font-size: 17px;
+            }
+            .header-date {
+                align-self: flex-start;
+                font-size: 13px;
+                flex-wrap: wrap;
+            }
+            .header-actions {
+                align-self: flex-start;
+            }
+            .card {
+                padding: 14px;
+            }
+            .metric-group .metric-row {
+                flex-wrap: wrap;
+            }
+            .metric-group .metric-row input,
+            .metric-group .metric-row select {
+                flex-basis: 100%;
+            }
+            .metric-group .metric-row .send-btn {
+                flex-basis: 100%;
+                justify-content: center;
+            }
+            .slider-wrap {
+                flex-wrap: wrap;
+            }
+            .entry-item {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 4px;
+            }
+            .entry-item .entry-actions {
+                justify-content: flex-end;
+            }
+            .log-item {
+                flex-wrap: wrap;
+                gap: 4px;
+            }
+            .time-edit-dialog {
+                padding: 20px;
+            }
+        }
+
+        .card {
+            animation: fadeInUp 0.4s ease forwards;
+        }
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(16px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container" id="app">
+
+        <div class="toast" id="toast"></div>
+
+        <div class="time-edit-overlay" id="timeEditOverlay">
+            <div class="time-edit-dialog">
+                <h3>⏱️ Edit Time</h3>
+                <div class="time-input-group">
+                    <label>New Time:</label>
+                    <input type="time" id="timeEditInput" />
+                </div>
+                <div class="dialog-actions">
+                    <button class="btn btn-secondary" id="timeEditCancel">Cancel</button>
+                    <button class="btn btn-primary" id="timeEditSave">Save</button>
+                </div>
+            </div>
+        </div>
+
+        <header class="app-header">
+            <div class="brand">
+                <div class="brand-icon">🌊</div>
+                <div>
+                    <h1>IPSRT <span>Tracker</span></h1>
+                    <div class="subtitle">Offline Sync · Interpersonal &amp; Social Rhythm</div>
+                </div>
+            </div>
+            <div class="header-actions">
+                <span class="sync-status" id="syncStatus">⏳ Connecting...</span>
+                <button class="btn-sync" id="syncBtn">🔄 Sync</button>
+                <button class="btn-today" id="goToTodayBtn">📅 Go to Today</button>
+                <button class="header-date" id="datePickerContainer">
+                    <span>📅</span>
+                    <span id="selectedDateDisplay"></span>
+                    <input type="date" id="datePicker" />
+                    <span class="date-click-hint">✏️ click to change</span>
+                </button>
+            </div>
+        </header>
+
+        <div class="stats-grid" id="statsGrid">
+            <div class="stat-card purple">
+                <div class="stat-value" id="totalLogs">0</div>
+                <div class="stat-label">Total Logs</div>
+            </div>
+            <div class="stat-card teal">
+                <div class="stat-value" id="lastSync">—</div>
+                <div class="stat-label">Last Sync</div>
+                <div class="stat-sub" id="lastSyncTime"></div>
+            </div>
+            <div class="stat-card orange">
+                <div class="stat-value" id="syncAge">—</div>
+                <div class="stat-label">Sync Age</div>
+            </div>
+            <div class="stat-card purple">
+                <div class="stat-value" id="avgMood">—</div>
+                <div class="stat-label">Avg Mood</div>
+            </div>
+            <div class="stat-card lavender">
+                <div class="stat-value" id="avgEnergy">—</div>
+                <div class="stat-label">Avg Energy</div>
+            </div>
+            <div class="stat-card pink">
+                <div class="stat-value" id="avgAnxiety">—</div>
+                <div class="stat-label">Avg Anxiety</div>
+            </div>
+            <div class="stat-card pink">
+                <div class="stat-value" id="avgIrritability">—</div>
+                <div class="stat-label">Avg Irritability</div>
+            </div>
+            <div class="stat-card pink">
+                <div class="stat-value" id="stabilityScore">—%</div>
+                <div class="stat-label">Stability</div>
+            </div>
+            <div class="stat-card pink">
+                <div class="stat-value" id="mealCount">0</div>
+                <div class="stat-label">Meals</div>
+            </div>
+            <div class="stat-card lavender">
+                <div class="stat-value" id="activityCount">0</div>
+                <div class="stat-label">Activities</div>
+            </div>
+        </div>
+
+        <div class="main-grid">
+            <div>
+                <div class="card" id="logCard">
+                    <div class="card-header">
+                        <h2><span class="emoji">⚡</span> Real‑time Loggers</h2>
+                        <span class="badge" id="logDateBadge">Today</span>
+                        <span class="edit-indicator" id="editIndicator">✏️ Editing</span>
+                    </div>
+
+                    <div class="metric-group">
+                        <label>🌅 Wake Time</label>
+                        <div class="metric-row">
+                            <input type="time" id="wakeTime" />
+                            <button class="send-btn send-btn-lavender" id="sendWakeBtn">📤 Send</button>
+                        </div>
+                    </div>
+
+                    <div class="metric-group">
+                        <label>🤝 First Contact</label>
+                        <div class="metric-row">
+                            <input type="time" id="firstContact" />
+                            <button class="send-btn send-btn-lavender" id="sendFirstContactBtn">📤 Send</button>
+                        </div>
+                    </div>
+
+                    <div class="metric-group">
+                        <label>💼 Start Activity</label>
+                        <div class="metric-row">
+                            <input type="time" id="startActivity" />
+                            <button class="send-btn send-btn-lavender" id="sendStartActivityBtn">📤 Send</button>
+                        </div>
+                    </div>
+
+                    <div class="metric-group">
+                        <label>📌 Activity Type</label>
+                        <div class="metric-row">
+                            <select id="activityType">
+                                <option value="Work">Work</option>
+                                <option value="Hobbies">Hobbies</option>
+                                <option value="Studying">Studying</option>
+                                <option value="Chores">Chores</option>
+                            </select>
+                            <button class="send-btn send-btn-lavender" id="sendActivityTypeBtn">📤 Send</button>
+                        </div>
+                    </div>
+
+                    <div class="metric-group">
+                        <label>🌙 Bedtime</label>
+                        <div class="metric-row">
+                            <input type="time" id="bedtime" />
+                            <button class="send-btn send-btn-lavender" id="sendBedtimeBtn">📤 Send</button>
+                        </div>
+                    </div>
+
+                    <div class="metric-group">
+                        <label>😊 Mood</label>
+                        <div class="metric-row">
+                            <div class="slider-wrap">
+                                <input type="range" id="moodSlider" min="1" max="10" value="6" step="1" />
+                                <span class="value" id="moodDisplay">6</span>
+                            </div>
+                            <button class="send-btn send-btn-pink" id="sendMoodBtn">📤 Send</button>
+                        </div>
+                    </div>
+
+                    <div class="metric-group">
+                        <label>⚡ Energy</label>
+                        <div class="metric-row">
+                            <div class="slider-wrap">
+                                <input type="range" id="energySlider" min="1" max="10" value="6" step="1" />
+                                <span class="value" id="energyDisplay">6</span>
+                            </div>
+                            <button class="send-btn send-btn-pink" id="sendEnergyBtn">📤 Send</button>
+                        </div>
+                    </div>
+
+                    <div class="metric-group">
+                        <label>😰 Anxiety</label>
+                        <div class="metric-row">
+                            <div class="slider-wrap">
+                                <input type="range" id="anxietySlider" min="1" max="10" value="6" step="1" />
+                                <span class="value" id="anxietyDisplay">6</span>
+                            </div>
+                            <button class="send-btn send-btn-pink" id="sendAnxietyBtn">📤 Send</button>
+                        </div>
+                    </div>
+
+                    <div class="metric-group">
+                        <label>😤 Irritability</label>
+                        <div class="metric-row">
+                            <div class="slider-wrap">
+                                <input type="range" id="irritabilitySlider" min="1" max="10" value="6" step="1" />
+                                <span class="value" id="irritabilityDisplay">6</span>
+                            </div>
+                            <button class="send-btn send-btn-pink" id="sendIrritabilityBtn">📤 Send</button>
+                        </div>
+                    </div>
+
+                    <div class="metric-group">
+                        <label>⚡ Interpersonal Issues (select & send)</label>
+                        <div class="issue-grid" style="margin-bottom:8px;">
+                            <div class="issue-check">
+                                <input type="checkbox" id="issueGrief" />
+                                <label for="issueGrief">💔 Grief</label>
+                            </div>
+                            <div class="issue-check">
+                                <input type="checkbox" id="issueDispute" />
+                                <label for="issueDispute">⚡ Role Dispute</label>
+                            </div>
+                            <div class="issue-check">
+                                <input type="checkbox" id="issueTransition" />
+                                <label for="issueTransition">🔄 Role Transition</label>
+                            </div>
+                            <div class="issue-check">
+                                <input type="checkbox" id="issueDeficit" />
+                                <label for="issueDeficit">🌐 Interpersonal Deficit</label>
+                            </div>
+                            <div class="issue-check">
+                                <input type="checkbox" id="issueGroupTherapy" />
+                                <label for="issueGroupTherapy">🫂 Group Therapy</label>
+                            </div>
+                            <div class="issue-check">
+                                <input type="checkbox" id="issueLotOfCommunication" />
+                                <label for="issueLotOfCommunication">💬 A lot of communication</label>
+                            </div>
+                        </div>
+                        <div class="metric-row">
+                            <button class="send-btn send-btn-pink" id="sendIssuesBtn" style="flex:1;">📤 Send Selected Issues</button>
+                        </div>
+                    </div>
+
+                    <div class="metric-group">
+                        <label>📓 Notes</label>
+                        <div class="metric-row">
+                            <input type="text" id="notes" placeholder="Type a note…" />
+                            <button class="send-btn send-btn-pink" id="sendNotesBtn">📤 Send</button>
+                        </div>
+                    </div>
+
+                    <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
+                        <button class="btn-outline btn-sm" id="clearAllBtn">🗑️ Clear All</button>
+                        <button class="btn-outline btn-sm" id="exportBtn">📥 Export JSON</button>
+                        <button class="btn-danger-outline btn-sm" id="cancelEditBtn" style="display:none;">✖️ Cancel Edit</button>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <div class="card" style="margin-bottom:16px;">
+                    <div class="card-header">
+                        <h2><span class="emoji">🍽️</span> Meal Logger</h2>
+                        <span class="badge" id="todayMealCount">0 meals</span>
+                    </div>
+                    <div class="metric-group" style="margin-bottom:0;padding-bottom:0;border-bottom:none;">
+                        <label>What are you eating?</label>
+                        <div class="metric-row">
+                            <input type="text" id="mealInput" placeholder="e.g. Breakfast, Lunch, Snack..." />
+                            <button class="send-btn send-btn-lavender" id="logMealBtn">➕ Log Meal</button>
+                        </div>
+                    </div>
+                    <div class="log-list" id="mealList">
+                        <div class="empty-state" style="padding:8px;">
+                            <p style="font-size:12px;">No meals logged today.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-bottom:16px;">
+                    <div class="card-header">
+                        <h2><span class="emoji">🎯</span> Activity Logger</h2>
+                        <span class="badge" id="todayActivityCount">0 activities</span>
+                    </div>
+                    <div class="metric-group" style="margin-bottom:0;padding-bottom:0;border-bottom:none;">
+                        <label>What are you doing?</label>
+                        <div class="metric-row">
+                            <input type="text" id="activityInput" placeholder="e.g. Gym, Reading, Walking..." />
+                            <button class="send-btn send-btn-lavender" id="logActivityBtn">➕ Log Activity</button>
+                        </div>
+                    </div>
+                    <div class="log-list" id="activityList">
+                        <div class="empty-state" style="padding:8px;">
+                            <p style="font-size:12px;">No activities logged today.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-bottom:16px;">
+                    <div class="card-header">
+                        <h2><span class="emoji">📊</span> Rhythm Stability</h2>
+                        <span class="badge">4 core rhythms</span>
+                    </div>
+                    <div class="stability-ring">
+                        <div class="ring" id="ringVisual">
+                            <div class="inner" id="ringInner">—%</div>
+                        </div>
+                        <div class="ring-details">
+                            <strong id="stabilityLabel">Calculating…</strong>
+                            <span id="stabilityDesc">Based on Wake, First Contact, Start Activity &amp; Bedtime.</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h2><span class="emoji">📋</span> Logs for <span id="historyDateLabel">Today</span></h2>
+                        <span class="badge" id="historyCount">0 logs</span>
+                    </div>
+                    <div class="entries-list" id="entriesList">
+                        <div class="empty-state">
+                            <div class="empty-icon">📭</div>
+                            <p>No logs for this date yet. Start sending metrics!</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="charts-grid" id="chartsGrid">
+            <div class="card chart-full">
+                <div class="card-header">
+                    <h2><span class="emoji">📈</span> Mood &amp; Energy Over Time</h2>
+                </div>
+                <canvas id="moodEnergyChart"></canvas>
+                <div class="chart-note">Shows your mood and energy trends</div>
+            </div>
+            <div class="card">
+                <div class="card-header">
+                    <h2><span class="emoji">⏰</span> Wake Time Trend</h2>
+                    <span class="badge">X: Date · Y: Time</span>
+                </div>
+                <canvas id="wakeChart"></canvas>
+                <div class="chart-note">Shows your wake time trend over time</div>
+            </div>
+            <div class="card">
+                <div class="card-header">
+                    <h2><span class="emoji">🤝</span> First Contact Trend</h2>
+                    <span class="badge">X: Date · Y: Time</span>
+                </div>
+                <canvas id="firstContactChart"></canvas>
+                <div class="chart-note">Shows your first contact time trend over time</div>
+            </div>
+            <div class="card">
+                <div class="card-header">
+                    <h2><span class="emoji">💼</span> Start Activity Trend</h2>
+                    <span class="badge">X: Date · Y: Time</span>
+                </div>
+                <canvas id="startActivityChart"></canvas>
+                <div class="chart-note">Shows your activity start time trend over time</div>
+            </div>
+            <div class="card">
+                <div class="card-header">
+                    <h2><span class="emoji">🌙</span> Bedtime Trend</h2>
+                    <span class="badge">X: Date · Y: Time</span>
+                </div>
+                <canvas id="bedtimeChart"></canvas>
+                <div class="chart-note">Shows your bedtime trend over time</div>
+            </div>
+            <div class="card">
+                <div class="card-header">
+                    <h2><span class="emoji">😰</span> Anxiety Trend</h2>
+                    <span class="badge">X: Date · Y: Anxiety (1-10)</span>
+                </div>
+                <canvas id="anxietyChart"></canvas>
+                <div class="chart-note">Shows your anxiety trend over time</div>
+            </div>
+            <div class="card">
+                <div class="card-header">
+                    <h2><span class="emoji">😤</span> Irritability Trend</h2>
+                    <span class="badge">X: Date · Y: Irritability (1-10)</span>
+                </div>
+                <canvas id="irritabilityChart"></canvas>
+                <div class="chart-note">Shows your irritability trend over time</div>
+            </div>
+            <div class="card">
+                <div class="card-header">
+                    <h2><span class="emoji">📊</span> Issues Frequency</h2>
+                </div>
+                <canvas id="issuesChart"></canvas>
+                <div class="chart-note">How often each interpersonal issue was reported</div>
+            </div>
+            <div class="card">
+                <div class="card-header">
+                    <h2><span class="emoji">🧩</span> Activity Types</h2>
+                </div>
+                <canvas id="activityTypeChart"></canvas>
+                <div class="chart-note">Distribution of your activity types</div>
+            </div>
+            <div class="card">
+                <div class="card-header">
+                    <h2><span class="emoji">🍽️</span> Meals per Day</h2>
+                    <span class="badge">X: Date · Y: Count</span>
+                </div>
+                <canvas id="mealsChart"></canvas>
+                <div class="chart-note">Shows how many meals you logged each day</div>
+            </div>
+            <div class="card">
+                <div class="card-header">
+                    <h2><span class="emoji">🎯</span> Activities per Day</h2>
+                    <span class="badge">X: Date · Y: Count</span>
+                </div>
+                <canvas id="activitiesChart"></canvas>
+                <div class="chart-note">Shows how many activities you logged each day</div>
+            </div>
+        </div>
+
+        <footer style="text-align:center;padding:16px 0 4px;font-size:12px;color:var(--text-light);">
+            IPSRT Tracker · Offline Sync · Data stored locally + cloud · Click ✏️ or ⏱️ on any log to edit
+        </footer>
+    </div>
+
+    <script>
+        (function() {
+            'use strict';
+
+            // ===== КОНФИГУРАЦИЯ (URL без /rest/v1/) =====
+            const SUPABASE_URL = 'https://nytprzfdmjuggodvospd.supabase.co';
+            const SUPABASE_ANON_KEY =
+                'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im55dHByemZkbWp1Z2dvZHZvc3BkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2NjQwNzcsImV4cCI6MjA5OTI0MDA3N30.PG5KNaN8QIhJxJ25ZovwfR5YL3QbQYxSzKZ9vgmK3og';
+
+            const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+            // ---- Офлайн хранилище ----
+            const OFFLINE_STORAGE_KEY = 'ipsrt_offline_logs';
+            const LAST_SYNC_KEY = 'ipsrt_last_sync';
+
+            // ---- DOM refs ----
+            const $ = id => document.getElementById(id);
+            const datePicker = $('datePicker');
+            const goToTodayBtn = $('goToTodayBtn');
+            const logDateBadge = $('logDateBadge');
+            const historyDateLabel = $('historyDateLabel');
+            const totalLogsEl = $('totalLogs');
+            const lastSyncEl = $('lastSync');
+            const lastSyncTimeEl = $('lastSyncTime');
+            const syncAgeEl = $('syncAge');
+            const avgMoodEl = $('avgMood');
+            const avgEnergyEl = $('avgEnergy');
+            const avgAnxietyEl = $('avgAnxiety');
+            const avgIrritabilityEl = $('avgIrritability');
+            const stabilityScoreEl = $('stabilityScore');
+            const mealCountEl = $('mealCount');
+            const activityCountEl = $('activityCount');
+            const entriesList = $('entriesList');
+            const historyCount = $('historyCount');
+            const toast = $('toast');
+            const editIndicator = $('editIndicator');
+            const cancelEditBtn = $('cancelEditBtn');
+            const syncStatus = $('syncStatus');
+            const syncBtn = $('syncBtn');
+            const selectedDateDisplay = document.getElementById('selectedDateDisplay');
+
+            // Meal & Activity loggers
+            const mealInput = $('mealInput');
+            const logMealBtn = $('logMealBtn');
+            const mealList = $('mealList');
+            const todayMealCount = $('todayMealCount');
+            const activityInput = $('activityInput');
+            const logActivityBtn = $('logActivityBtn');
+            const activityList = $('activityList');
+            const todayActivityCount = $('todayActivityCount');
+
+            const timeEditOverlay = $('timeEditOverlay');
+            const timeEditInput = $('timeEditInput');
+            const timeEditCancel = $('timeEditCancel');
+            const timeEditSave = $('timeEditSave');
+
+            // Inputs
+            const wakeTime = $('wakeTime');
+            const firstContact = $('firstContact');
+            const startActivity = $('startActivity');
+            const bedtime = $('bedtime');
+            const activityType = $('activityType');
+            const moodSlider = $('moodSlider');
+            const moodDisplay = $('moodDisplay');
+            const energySlider = $('energySlider');
+            const energyDisplay = $('energyDisplay');
+            const anxietySlider = $('anxietySlider');
+            const anxietyDisplay = $('anxietyDisplay');
+            const irritabilitySlider = $('irritabilitySlider');
+            const irritabilityDisplay = $('irritabilityDisplay');
+            const issueGrief = $('issueGrief');
+            const issueDispute = $('issueDispute');
+            const issueTransition = $('issueTransition');
+            const issueDeficit = $('issueDeficit');
+            const issueGroupTherapy = $('issueGroupTherapy');
+            const issueLotOfCommunication = $('issueLotOfCommunication');
+            const notes = $('notes');
+
+            // Send buttons
+            const sendWakeBtn = $('sendWakeBtn');
+            const sendFirstContactBtn = $('sendFirstContactBtn');
+            const sendStartActivityBtn = $('sendStartActivityBtn');
+            const sendBedtimeBtn = $('sendBedtimeBtn');
+            const sendActivityTypeBtn = $('sendActivityTypeBtn');
+            const sendMoodBtn = $('sendMoodBtn');
+            const sendEnergyBtn = $('sendEnergyBtn');
+            const sendAnxietyBtn = $('sendAnxietyBtn');
+            const sendIrritabilityBtn = $('sendIrritabilityBtn');
+            const sendIssuesBtn = $('sendIssuesBtn');
+            const sendNotesBtn = $('sendNotesBtn');
+
+            const ringVisual = $('ringVisual');
+            const ringInner = $('ringInner');
+            const stabilityLabel = $('stabilityLabel');
+            const stabilityDesc = $('stabilityDesc');
+
+            // Charts
+            const moodEnergyCanvas = $('moodEnergyChart');
+            const wakeCanvas = $('wakeChart');
+            const firstContactCanvas = $('firstContactChart');
+            const startActivityCanvas = $('startActivityChart');
+            const bedtimeCanvas = $('bedtimeChart');
+            const anxietyCanvas = $('anxietyChart');
+            const irritabilityCanvas = $('irritabilityChart');
+            const issuesCanvas = $('issuesChart');
+            const activityTypeCanvas = $('activityTypeChart');
+            const mealsCanvas = $('mealsChart');
+            const activitiesCanvas = $('activitiesChart');
+
+            // ---- State ----
+            let logs = [];
+            let selectedDate = getToday();
+            let editState = null;
+            let chartInstances = {};
+            let isSyncing = false;
+            let userId = null;
+            let isOnline = navigator.onLine;
+            let lastSyncTime = localStorage.getItem(LAST_SYNC_KEY) || null;
+
+            // ---- Helper functions ----
+            function getToday() {
+                const d = new Date();
+                return d.toISOString().split('T')[0];
+            }
+
+            function getNow() {
+                const d = new Date();
+                return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+            }
+
+            function getFullTimestamp() {
+                const d = new Date();
+                return d.toISOString().replace('T', ' ').slice(0, 16);
+            }
+
+            function generateUUID() {
+                return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                    const r = Math.random() * 16 | 0;
+                    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+                    return v.toString(16);
+                });
+            }
+
+            function formatDateDisplay(dateStr) {
+                try {
+                    const d = new Date(dateStr + 'T00:00:00');
+                    return d.toLocaleDateString('en-US', {
+                        weekday: 'short',
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric'
+                    });
+                } catch (e) {
+                    return dateStr;
+                }
+            }
+
+            function formatDateShort(dateStr) {
+                try {
+                    const d = new Date(dateStr + 'T00:00:00');
+                    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                } catch (e) {
+                    return dateStr;
+                }
+            }
+
+            function formatTimeDisplay(dateStr) {
+                try {
+                    const d = new Date(dateStr);
+                    return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                } catch (e) {
+                    return dateStr;
+                }
+            }
+
+            function getTimeAgo(dateStr) {
+                try {
+                    const now = new Date();
+                    const then = new Date(dateStr);
+                    const diffMs = now - then;
+                    const diffSec = Math.floor(diffMs / 1000);
+                    const diffMin = Math.floor(diffSec / 60);
+                    const diffHour = Math.floor(diffMin / 60);
+                    const diffDay = Math.floor(diffHour / 24);
+
+                    if (diffSec < 10) return 'Just now';
+                    if (diffSec < 60) return `${diffSec} sec ago`;
+                    if (diffMin < 60) return `${diffMin} min ago`;
+                    if (diffHour < 24) return `${diffHour} hour${diffHour > 1 ? 's' : ''} ago`;
+                    return `${diffDay} day${diffDay > 1 ? 's' : ''} ago`;
+                } catch (e) {
+                    return '—';
+                }
+            }
+
+            function getIssueLabels() {
+                const labels = [];
+                if (issueGrief.checked) labels.push('Grief');
+                if (issueDispute.checked) labels.push('Role Dispute');
+                if (issueTransition.checked) labels.push('Role Transition');
+                if (issueDeficit.checked) labels.push('Interpersonal Deficit');
+                if (issueGroupTherapy.checked) labels.push('Group Therapy');
+                if (issueLotOfCommunication.checked) labels.push('A lot of communication');
+                return labels;
+            }
+
+            function setIssueCheckboxes(labels) {
+                if (!labels || !Array.isArray(labels)) return;
+                issueGrief.checked = labels.includes('Grief');
+                issueDispute.checked = labels.includes('Role Dispute');
+                issueTransition.checked = labels.includes('Role Transition');
+                issueDeficit.checked = labels.includes('Interpersonal Deficit');
+                issueGroupTherapy.checked = labels.includes('Group Therapy');
+                issueLotOfCommunication.checked = labels.includes('A lot of communication');
+            }
+
+            function getValueDisplay(value) {
+                if (typeof value === 'number') return value.toString();
+                if (Array.isArray(value)) return value.join(', ') || 'none';
+                return value || '—';
+            }
+
+            // ---- Offline Storage ----
+            function getOfflineLogs() {
+                try {
+                    const data = localStorage.getItem(OFFLINE_STORAGE_KEY);
+                    return data ? JSON.parse(data) : [];
+                } catch (e) {
+                    return [];
+                }
+            }
+
+            function saveOfflineLog(log) {
+                const offlineLogs = getOfflineLogs();
+                const newLog = {
+                    ...log,
+                    local_id: generateUUID(),
+                    pending_sync: true,
+                    synced: false,
+                    created_at: new Date().toISOString()
+                };
+                offlineLogs.push(newLog);
+                localStorage.setItem(OFFLINE_STORAGE_KEY, JSON.stringify(offlineLogs));
+                return newLog;
+            }
+
+            function clearAllOfflineLogs() {
+                localStorage.removeItem(OFFLINE_STORAGE_KEY);
+            }
+
+            function updateLastSync() {
+                const now = new Date().toISOString();
+                localStorage.setItem(LAST_SYNC_KEY, now);
+                lastSyncTime = now;
+            }
+
+            // ---- Supabase Auth ----
+            async function signInAnonymously() {
+                try {
+                    const { data, error } = await supabase.auth.signInAnonymously();
+                    if (error) {
+                        console.error('Auth error:', error);
+                        if (error.message && error.message.includes('Anonymous sign-ins are disabled')) {
+                            const tempEmail = `guest_${Date.now()}@temp.com`;
+                            const tempPassword = 'Temp123!@#';
+                            const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+                                email: tempEmail,
+                                password: tempPassword
+                            });
+                            if (signUpError) {
+                                console.error('Sign up error:', signUpError);
+                                setSyncStatus('offline', '❌ Auth failed');
+                                return false;
+                            }
+                            if (signUpData && signUpData.user) {
+                                userId = signUpData.user.id;
+                                setSyncStatus('online', '✅ Connected (temp account)');
+                                isOnline = true;
+                                return true;
+                            }
+                        }
+                        setSyncStatus('offline', '❌ Auth failed');
+                        return false;
+                    }
+                    userId = data.user.id;
+                    console.log('✅ Authenticated with Supabase');
+                    setSyncStatus('online', '✅ Connected');
+                    isOnline = true;
+                    return true;
+                } catch (error) {
+                    console.error('Auth error:', error);
+                    setSyncStatus('offline', '❌ Auth error');
+                    isOnline = false;
+                    return false;
+                }
+            }
+
+            // ---- Supabase CRUD ----
+            async function loadLogsFromSupabase() {
+                try {
+                    const { data, error } = await supabase
+                        .from('ipsrt_logs')
+                        .select('*')
+                        .order('date', { ascending: false })
+                        .order('time', { ascending: false });
+
+                    if (error) {
+                        console.error('Load error:', error);
+                        throw error;
+                    }
+
+                    if (data && data.length > 0) {
+                        const cloudLogs = data.map(row => ({
+                            id: row.id,
+                            date: row.date,
+                            time: row.time,
+                            timestamp: row.timestamp,
+                            type: row.type,
+                            value: row.value,
+                            synced: true,
+                            pending_sync: false
+                        }));
+                        const offline = getOfflineLogs();
+                        logs = [...offline, ...cloudLogs];
+                        logs.sort((a, b) => {
+                            const dateCompare = (a.date < b.date ? 1 : (a.date > b.date ? -1 : 0));
+                            if (dateCompare !== 0) return dateCompare;
+                            return (a.time < b.time ? 1 : -1);
+                        });
+                    } else {
+                        const offline = getOfflineLogs();
+                        logs = [...offline];
+                    }
+                    return true;
+                } catch (error) {
+                    console.error('Load error:', error);
+                    showToast('❌ Failed to load data from cloud', 'error');
+                    const offline = getOfflineLogs();
+                    logs = [...offline];
+                    return false;
+                }
+            }
+
+            async function addLogToSupabase(log) {
+                try {
+                    const { data, error } = await supabase
+                        .from('ipsrt_logs')
+                        .insert([{
+                            date: log.date,
+                            time: log.time,
+                            timestamp: log.timestamp,
+                            type: log.type,
+                            value: log.value
+                        }])
+                        .select();
+
+                    if (error) {
+                        console.error('Insert error:', error);
+                        throw error;
+                    }
+                    return data && data.length > 0 ? data[0] : null;
+                } catch (error) {
+                    console.error('Insert error:', error);
+                    return null;
+                }
+            }
+
+            async function updateLogInSupabase(id, log) {
+                try {
+                    const { error } = await supabase
+                        .from('ipsrt_logs')
+                        .update({
+                            date: log.date,
+                            time: log.time,
+                            timestamp: log.timestamp,
+                            type: log.type,
+                            value: log.value
+                        })
+                        .eq('id', id);
+
+                    if (error) {
+                        console.error('Update error:', error);
+                        throw error;
+                    }
+                    return true;
+                } catch (error) {
+                    console.error('Update error:', error);
+                    showToast('❌ Failed to update in cloud', 'error');
+                    return false;
+                }
+            }
+
+            async function deleteLogFromSupabase(id) {
+                try {
+                    const { error } = await supabase
+                        .from('ipsrt_logs')
+                        .delete()
+                        .eq('id', id);
+
+                    if (error) {
+                        console.error('Delete error:', error);
+                        throw error;
+                    }
+                    return true;
+                } catch (error) {
+                    console.error('Delete error:', error);
+                    showToast('❌ Failed to delete from cloud', 'error');
+                    return false;
+                }
+            }
+
+            // ---- Sync ----
+            async function syncOfflineLogs() {
+                if (isSyncing) return;
+                const offlineLogs = getOfflineLogs();
+                const pendingLogs = offlineLogs.filter(log => log.pending_sync && !log._deleted);
+
+                if (pendingLogs.length === 0) {
+                    showToast('✅ No logs to sync', 'success');
+                    setSyncStatus('online', '✅ Connected');
+                    updateLastSync();
+                    refreshUI();
+                    return;
+                }
+
+                isSyncing = true;
+                syncBtn.disabled = true;
+                setSyncStatus('syncing', `🔄 Syncing (${pendingLogs.length})...`);
+
+                let syncedCount = 0;
+                let failedCount = 0;
+
+                for (const log of pendingLogs) {
+                    try {
+                        if (log._deleted) {
+                            const allOffline = getOfflineLogs();
+                            const updatedOffline = allOffline.filter(l => l.local_id !== log.local_id);
+                            localStorage.setItem(OFFLINE_STORAGE_KEY, JSON.stringify(updatedOffline));
+                            syncedCount++;
+                            continue;
+                        }
+
+                        const inserted = await addLogToSupabase({
+                            date: log.date,
+                            time: log.time,
+                            timestamp: log.timestamp || log.created_at,
+                            type: log.type,
+                            value: log.value
+                        });
+
+                        if (inserted) {
+                            const allOffline = getOfflineLogs();
+                            const updatedOffline = allOffline.filter(l => l.local_id !== log.local_id);
+                            localStorage.setItem(OFFLINE_STORAGE_KEY, JSON.stringify(updatedOffline));
+                            syncedCount++;
+                        } else {
+                            failedCount++;
+                        }
+                    } catch (error) {
+                        console.error('Sync error:', error);
+                        failedCount++;
+                    }
+                }
+
+                await loadLogsFromSupabase();
+                updateLastSync();
+                refreshUI();
+
+                if (syncedCount > 0 && failedCount === 0) {
+                    setSyncStatus('online', `✅ Synced: ${syncedCount}`);
+                    showToast(`✅ Synced ${syncedCount} logs`, 'success');
+                } else if (syncedCount > 0 && failedCount > 0) {
+                    setSyncStatus('pending', `⚠️ Synced: ${syncedCount}, Failed: ${failedCount}`);
+                    showToast(`⚠️ Synced ${syncedCount}, ${failedCount} failed`, 'warning');
+                } else {
+                    setSyncStatus('offline', '❌ Sync failed');
+                    showToast('❌ Sync failed. Check your connection.', 'error');
+                }
+
+                isSyncing = false;
+                syncBtn.disabled = false;
+                updatePendingCount();
+            }
+
+            function updatePendingCount() {
+                const offline = getOfflineLogs();
+                const pending = offline.filter(l => l.pending_sync && !l._deleted).length;
+                if (pending > 0 && isOnline) {
+                    setSyncStatus('pending', `📱 ${pending} pending`);
+                } else if (pending > 0 && !isOnline) {
+                    setSyncStatus('offline', `📱 ${pending} pending (offline)`);
+                }
+            }
+
+            function handleOnline() {
+                isOnline = true;
+                showToast('🌐 Internet restored! Syncing...', 'info');
+                syncOfflineLogs();
+                updatePendingCount();
+            }
+
+            function handleOffline() {
+                isOnline = false;
+                setSyncStatus('offline', '⚠️ Offline mode');
+                showToast('📱 You are offline. Data will be saved locally.', 'info');
+                updatePendingCount();
+            }
+
+            // ---- CRUD ----
+            async function addLog(type, value) {
+                const log = {
+                    date: selectedDate,
+                    time: getNow(),
+                    timestamp: getFullTimestamp(),
+                    type: type,
+                    value: value
+                };
+
+                if (isOnline) {
+                    const inserted = await addLogToSupabase(log);
+                    if (inserted) {
+                        logs.unshift({
+                            id: inserted.id,
+                            date: inserted.date,
+                            time: inserted.time,
+                            timestamp: inserted.timestamp,
+                            type: inserted.type,
+                            value: inserted.value,
+                            synced: true,
+                            pending_sync: false
+                        });
+                        refreshUI();
+                        showToast(`✅ ${type}: ${getValueDisplay(value)} (Saved to cloud)`, 'success');
+                        return;
+                    }
+                }
+
+                const offlineLog = saveOfflineLog(log);
+                logs.unshift({
+                    ...offlineLog,
+                    synced: false,
+                    pending_sync: true
+                });
+                refreshUI();
+                updatePendingCount();
+                if (isOnline) {
+                    showToast(`⚠️ Cloud unavailable. Saved locally.`, 'warning');
+                } else {
+                    showToast(`📱 ${type}: ${getValueDisplay(value)} (Saved offline)`, 'info');
+                }
+            }
+
+            async function updateLog(index, type, value) {
+                if (index < 0 || index >= logs.length) return;
+                const log = logs[index];
+                const updatedLog = {
+                    date: log.date,
+                    time: getNow(),
+                    timestamp: getFullTimestamp(),
+                    type: type,
+                    value: value
+                };
+
+                if (log.local_id && !log.id) {
+                    const offlineLogs = getOfflineLogs();
+                    const idx = offlineLogs.findIndex(l => l.local_id === log.local_id);
+                    if (idx !== -1) {
+                        offlineLogs[idx] = {
+                            ...offlineLogs[idx],
+                            ...updatedLog,
+                            time: getNow(),
+                            timestamp: getFullTimestamp()
+                        };
+                        localStorage.setItem(OFFLINE_STORAGE_KEY, JSON.stringify(offlineLogs));
+                        logs[index] = {
+                            ...logs[index],
+                            ...updatedLog,
+                            time: getNow(),
+                            timestamp: getFullTimestamp()
+                        };
+                        refreshUI();
+                        clearEditState();
+                        showToast(`✅ Updated ${type} (offline)`, 'success');
+                    }
+                    return;
+                }
+
+                if (isOnline) {
+                    const success = await updateLogInSupabase(log.id, updatedLog);
+                    if (success) {
+                        logs[index] = {
+                            ...logs[index],
+                            ...updatedLog,
+                            time: getNow(),
+                            timestamp: getFullTimestamp()
+                        };
+                        refreshUI();
+                        clearEditState();
+                        showToast(`✅ Updated ${type}`, 'success');
+                        return;
+                    }
+                }
+
+                const offlineLog = saveOfflineLog(updatedLog);
+                logs[index] = {
+                    ...offlineLog,
+                    synced: false,
+                    pending_sync: true
+                };
+                if (log.id) {
+                    const offlineLogs = getOfflineLogs();
+                    const existingIdx = offlineLogs.findIndex(l => l.local_id === offlineLog.local_id);
+                    if (existingIdx === -1) {
+                        offlineLogs.push({
+                            ...offlineLog,
+                            pending_sync: true
+                        });
+                        localStorage.setItem(OFFLINE_STORAGE_KEY, JSON.stringify(offlineLogs));
+                    }
+                }
+                refreshUI();
+                updatePendingCount();
+                showToast('📱 Update saved offline. Will sync later.', 'info');
+            }
+
+            function openTimeEdit(index) {
+                const log = logs[index];
+                if (!log) return;
+                if (log.type !== 'Meal' && log.type !== 'Activity') {
+                    showToast('⏱️ Time editing is only available for Meals and Activities', 'warning');
+                    return;
+                }
+                timeEditTarget = { index };
+                timeEditInput.value = log.time || '12:00';
+                timeEditOverlay.classList.add('active');
+            }
+
+            async function saveTimeEdit() {
+                if (!timeEditTarget) return;
+                const { index } = timeEditTarget;
+                const log = logs[index];
+                if (!log) {
+                    closeTimeEdit();
+                    return;
+                }
+
+                const newTime = timeEditInput.value;
+                if (!newTime) {
+                    showToast('⚠️ Please select a time', 'error');
+                    return;
+                }
+
+                const updatedLog = {
+                    date: log.date,
+                    time: newTime,
+                    timestamp: log.timestamp || getFullTimestamp(),
+                    type: log.type,
+                    value: log.value
+                };
+
+                if (log.local_id && !log.id) {
+                    const offlineLogs = getOfflineLogs();
+                    const idx = offlineLogs.findIndex(l => l.local_id === log.local_id);
+                    if (idx !== -1) {
+                        offlineLogs[idx] = {
+                            ...offlineLogs[idx],
+                            time: newTime,
+                            timestamp: getFullTimestamp()
+                        };
+                        localStorage.setItem(OFFLINE_STORAGE_KEY, JSON.stringify(offlineLogs));
+                        logs[index] = {
+                            ...logs[index],
+                            time: newTime,
+                            timestamp: getFullTimestamp()
+                        };
+                        refreshUI();
+                        closeTimeEdit();
+                        showToast(`⏱️ Time updated to ${newTime} (offline)`, 'success');
+                        return;
+                    }
+                }
+
+                if (isOnline) {
+                    const success = await updateLogInSupabase(log.id, updatedLog);
+                    if (success) {
+                        logs[index] = {
+                            ...logs[index],
+                            time: newTime,
+                            timestamp: getFullTimestamp()
+                        };
+                        refreshUI();
+                        closeTimeEdit();
+                        showToast(`⏱️ Time updated to ${newTime}`, 'success');
+                        return;
+                    }
+                }
+
+                const offlineLog = saveOfflineLog(updatedLog);
+                logs[index] = {
+                    ...offlineLog,
+                    synced: false,
+                    pending_sync: true
+                };
+                if (log.id) {
+                    const offlineLogs = getOfflineLogs();
+                    const existingIdx = offlineLogs.findIndex(l => l.local_id === offlineLog.local_id);
+                    if (existingIdx === -1) {
+                        offlineLogs.push({
+                            ...offlineLog,
+                            pending_sync: true
+                        });
+                        localStorage.setItem(OFFLINE_STORAGE_KEY, JSON.stringify(offlineLogs));
+                    }
+                }
+                refreshUI();
+                updatePendingCount();
+                closeTimeEdit();
+                showToast(`⏱️ Time updated to ${newTime} (offline, will sync later)`, 'info');
+            }
+
+            function closeTimeEdit() {
+                timeEditOverlay.classList.remove('active');
+                timeEditTarget = null;
+                timeEditInput.value = '';
+            }
+
+            async function deleteLog(index) {
+                if (!confirm('Delete this log?')) return;
+                const log = logs[index];
+                if (!log) return;
+
+                if (log.local_id && !log.id) {
+                    const offlineLogs = getOfflineLogs();
+                    const updated = offlineLogs.filter(l => l.local_id !== log.local_id);
+                    localStorage.setItem(OFFLINE_STORAGE_KEY, JSON.stringify(updated));
+                    logs.splice(index, 1);
+                    refreshUI();
+                    if (editState && editState.index === index) clearEditState();
+                    updatePendingCount();
+                    showToast(`🗑️ ${log.type} deleted (offline)`, 'info');
+                    return;
+                }
+
+                if (isOnline) {
+                    const success = await deleteLogFromSupabase(log.id);
+                    if (success) {
+                        logs.splice(index, 1);
+                        refreshUI();
+                        if (editState && editState.index === index) clearEditState();
+                        showToast(`🗑️ ${log.type} deleted`, 'info');
+                        return;
+                    }
+                }
+
+                const offlineLogs = getOfflineLogs();
+                offlineLogs.push({
+                    ...log,
+                    pending_sync: true,
+                    _deleted: true,
+                    deleted_at: new Date().toISOString()
+                });
+                localStorage.setItem(OFFLINE_STORAGE_KEY, JSON.stringify(offlineLogs));
+                logs.splice(index, 1);
+                refreshUI();
+                if (editState && editState.index === index) clearEditState();
+                updatePendingCount();
+                showToast('📱 Delete saved offline. Will sync later.', 'info');
+            }
+
+            async function clearAll() {
+                if (logs.length === 0) return;
+                if (!confirm('⚠️ Delete ALL logs? This cannot be undone.')) return;
+
+                if (isOnline) {
+                    try {
+                        const cloudLogs = logs.filter(l => l.id);
+                        for (const log of cloudLogs) {
+                            await deleteLogFromSupabase(log.id);
+                        }
+                    } catch (e) {
+                        console.error('Clear all error:', e);
+                    }
+                }
+
+                clearAllOfflineLogs();
+                logs = [];
+                refreshUI();
+                clearEditState();
+                updatePendingCount();
+                showToast('🗑️ All cleared', 'error');
+            }
+
+            // ---- Edit State ----
+            function setEditState(index, type, value) {
+                clearEditState();
+                editState = { index, type, value };
+                editIndicator.classList.add('active');
+                cancelEditBtn.style.display = 'inline-block';
+
+                document.querySelectorAll('.entry-item').forEach(el => el.classList.remove('editing'));
+                const items = document.querySelectorAll('.entry-item');
+                if (items && items[index]) {
+                    items[index].classList.add('editing');
+                    items[index].scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+
+                const fieldMap = {
+                    'Wake Time': { input: wakeTime, type: 'time' },
+                    'First Contact': { input: firstContact, type: 'time' },
+                    'Start Activity': { input: startActivity, type: 'time' },
+                    'Bedtime': { input: bedtime, type: 'time' },
+                    'Activity Type': { input: activityType, type: 'select' },
+                    'Mood': { input: moodSlider, type: 'slider', display: moodDisplay },
+                    'Energy': { input: energySlider, type: 'slider', display: energyDisplay },
+                    'Anxiety': { input: anxietySlider, type: 'slider', display: anxietyDisplay },
+                    'Irritability': { input: irritabilitySlider, type: 'slider', display: irritabilityDisplay },
+                    'Issues': { input: null, type: 'issues' },
+                    'Note': { input: notes, type: 'text' },
+                    'Meal': { input: mealInput, type: 'text' },
+                    'Activity': { input: activityInput, type: 'text' }
+                };
+
+                const field = fieldMap[type];
+                if (field) {
+                    if (field.type === 'time' || field.type === 'text') {
+                        field.input.value = value || '';
+                        field.input.classList.add('editing');
+                    } else if (field.type === 'select') {
+                        field.input.value = value || 'Work';
+                        field.input.classList.add('editing');
+                    } else if (field.type === 'slider') {
+                        const val = parseInt(value) || 6;
+                        field.input.value = val;
+                        field.display.textContent = val;
+                        field.input.classList.add('editing');
+                    } else if (field.type === 'issues') {
+                        if (Array.isArray(value)) {
+                            setIssueCheckboxes(value);
+                        }
+                    }
+                }
+
+                const btnMap = {
+                    'Wake Time': sendWakeBtn,
+                    'First Contact': sendFirstContactBtn,
+                    'Start Activity': sendStartActivityBtn,
+                    'Bedtime': sendBedtimeBtn,
+                    'Activity Type': sendActivityTypeBtn,
+                    'Mood': sendMoodBtn,
+                    'Energy': sendEnergyBtn,
+                    'Anxiety': sendAnxietyBtn,
+                    'Irritability': sendIrritabilityBtn,
+                    'Issues': sendIssuesBtn,
+                    'Note': sendNotesBtn,
+                    'Meal': logMealBtn,
+                    'Activity': logActivityBtn
+                };
+                const btn = btnMap[type];
+                if (btn) {
+                    btn.textContent = '✏️ Update';
+                    btn.classList.add('send-btn-update');
+                }
+
+                showToast(`✏️ Editing ${type}`, 'info');
+            }
+
+            function clearEditState() {
+                if (editState) {
+                    document.querySelectorAll('.metric-row input, .metric-row select').forEach(el => {
+                        el.classList.remove('editing');
+                    });
+                    const allBtns = [
+                        sendWakeBtn, sendFirstContactBtn, sendStartActivityBtn,
+                        sendBedtimeBtn, sendActivityTypeBtn, sendMoodBtn,
+                        sendEnergyBtn, sendAnxietyBtn, sendIrritabilityBtn,
+                        sendIssuesBtn, sendNotesBtn,
+                        logMealBtn, logActivityBtn
+                    ];
+                    const originalTexts = {
+                        'sendWakeBtn': '📤 Send',
+                        'sendFirstContactBtn': '📤 Send',
+                        'sendStartActivityBtn': '📤 Send',
+                        'sendBedtimeBtn': '📤 Send',
+                        'sendActivityTypeBtn': '📤 Send',
+                        'sendMoodBtn': '📤 Send',
+                        'sendEnergyBtn': '📤 Send',
+                        'sendAnxietyBtn': '📤 Send',
+                        'sendIrritabilityBtn': '📤 Send',
+                        'sendIssuesBtn': '📤 Send Selected Issues',
+                        'sendNotesBtn': '📤 Send',
+                        'logMealBtn': '➕ Log Meal',
+                        'logActivityBtn': '➕ Log Activity'
+                    };
+                    allBtns.forEach(b => {
+                        if (b && b.id) {
+                            b.textContent = originalTexts[b.id] || '📤 Send';
+                            b.classList.remove('send-btn-update');
+                        }
+                    });
+                    document.querySelectorAll('.entry-item').forEach(el => el.classList.remove('editing'));
+                }
+                editState = null;
+                editIndicator.classList.remove('active');
+                cancelEditBtn.style.display = 'none';
+            }
+
+            // ---- Date Selection ----
+            function setSelectedDate(date) {
+                selectedDate = date;
+                datePicker.value = date;
+                const displayDate = formatDateDisplay(date);
+                logDateBadge.textContent = formatDateShort(date);
+                historyDateLabel.textContent = displayDate;
+                if (selectedDateDisplay) {
+                    selectedDateDisplay.textContent = displayDate;
+                }
+                clearEditState();
+                refreshUI();
+            }
+
+            function goToToday() {
+                setSelectedDate(getToday());
+                showToast('📅 Jumped to today', 'info');
+            }
+
+            // ---- Export ----
+            function exportJSON() {
+                if (logs.length === 0) {
+                    showToast('No data to export.', 'error');
+                    return;
+                }
+                const dataStr = JSON.stringify(logs, null, 2);
+                const blob = new Blob([dataStr], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `ipsrt_logs_${getToday()}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                showToast('📥 Export downloaded!', 'success');
+            }
+
+            // ---- Stats ----
+            function computeStats() {
+                const total = logs.length;
+                totalLogsEl.textContent = total;
+
+                if (lastSyncTime) {
+                    const displayDate = formatDateDisplay(lastSyncTime.split('T')[0]);
+                    const displayTime = formatTimeDisplay(lastSyncTime);
+                    lastSyncEl.textContent = displayDate;
+                    lastSyncTimeEl.textContent = displayTime;
+                    syncAgeEl.textContent = getTimeAgo(lastSyncTime);
+                } else {
+                    lastSyncEl.textContent = '—';
+                    lastSyncTimeEl.textContent = '';
+                    syncAgeEl.textContent = 'Never';
+                }
+
+                const moodLogs = logs.filter(l => l.type === 'Mood');
+                const energyLogs = logs.filter(l => l.type === 'Energy');
+                const anxietyLogs = logs.filter(l => l.type === 'Anxiety');
+                const irritabilityLogs = logs.filter(l => l.type === 'Irritability');
+                const mealLogs = logs.filter(l => l.type === 'Meal');
+                const activityLogs = logs.filter(l => l.type === 'Activity');
+
+                mealCountEl.textContent = mealLogs.length;
+                activityCountEl.textContent = activityLogs.length;
+
+                const todayMeals = logs.filter(l => l.date === selectedDate && l.type === 'Meal');
+                const todayActivities = logs.filter(l => l.date === selectedDate && l.type === 'Activity');
+                todayMealCount.textContent = `${todayMeals.length} meals`;
+                todayActivityCount.textContent = `${todayActivities.length} activities`;
+
+                if (moodLogs.length > 0) {
+                    const moodSum = moodLogs.reduce((s, l) => s + parseInt(l.value, 10), 0);
+                    avgMoodEl.textContent = (moodSum / moodLogs.length).toFixed(1);
+                } else {
+                    avgMoodEl.textContent = '—';
+                }
+
+                if (energyLogs.length > 0) {
+                    const energySum = energyLogs.reduce((s, l) => s + parseInt(l.value, 10), 0);
+                    avgEnergyEl.textContent = (energySum / energyLogs.length).toFixed(1);
+                } else {
+                    avgEnergyEl.textContent = '—';
+                }
+
+                if (anxietyLogs.length > 0) {
+                    const anxietySum = anxietyLogs.reduce((s, l) => s + parseInt(l.value, 10), 0);
+                    avgAnxietyEl.textContent = (anxietySum / anxietyLogs.length).toFixed(1);
+                } else {
+                    avgAnxietyEl.textContent = '—';
+                }
+
+                if (irritabilityLogs.length > 0) {
+                    const irritabilitySum = irritabilityLogs.reduce((s, l) => s + parseInt(l.value, 10), 0);
+                    avgIrritabilityEl.textContent = (irritabilitySum / irritabilityLogs.length).toFixed(1);
+                } else {
+                    avgIrritabilityEl.textContent = '—';
+                }
+
+                // Stability
+                const wakeLogs = logs.filter(l => l.type === 'Wake Time');
+                const contactLogs = logs.filter(l => l.type === 'First Contact');
+                const startLogs = logs.filter(l => l.type === 'Start Activity');
+                const bedLogs = logs.filter(l => l.type === 'Bedtime');
+
+                const allWake = wakeLogs.map(l => l.value).filter(v => v);
+                const allContact = contactLogs.map(l => l.value).filter(v => v);
+                const allStart = startLogs.map(l => l.value).filter(v => v);
+                const allBed = bedLogs.map(l => l.value).filter(v => v);
+
+                let stability = 0;
+                let validFields = 0;
+
+                [allWake, allContact, allStart, allBed].forEach(times => {
+                    if (times.length < 2) return;
+                    const minutes = times.map(t => {
+                        const [h, m] = t.split(':').map(Number);
+                        return h * 60 + m;
+                    });
+                    const mean = minutes.reduce((a, b) => a + b, 0) / minutes.length;
+                    const variance = minutes.reduce((a, b) => a + (b - mean) ** 2, 0) / minutes.length;
+                    const stdDev = Math.sqrt(variance);
+                    const normalized = Math.min(stdDev / 180, 1);
+                    stability += (1 - normalized);
+                    validFields++;
+                });
+
+                let stabilityPercent = 0;
+                if (validFields > 0) {
+                    stabilityPercent = Math.max(0, Math.round((stability / validFields) * 100));
+                }
+
+                stabilityScoreEl.textContent = stabilityPercent + '%';
+                ringInner.textContent = stabilityPercent + '%';
+                const percent = Math.min(stabilityPercent, 100);
+                ringVisual.style.background =
+                    `conic-gradient(#7C5CFC 0% ${percent}%, #E9D8FD ${percent}% 100%)`;
+
+                if (stabilityPercent >= 70) {
+                    stabilityLabel.textContent = '🌟 Stable Rhythm';
+                    stabilityDesc.textContent = 'Great consistency in your core routines!';
+                } else if (stabilityPercent >= 50) {
+                    stabilityLabel.textContent = '🔄 Moderately Stable';
+                    stabilityDesc.textContent = 'Some variation — focus on regular bed/wake times.';
+                } else if (stabilityPercent > 0) {
+                    stabilityLabel.textContent = '⚠️ Needs Attention';
+                    stabilityDesc.textContent = 'Try to stabilise your wake, activity start, and bedtime.';
+                } else {
+                    stabilityLabel.textContent = '📊 Need more data';
+                    stabilityDesc.textContent = 'Log more entries to see your stability trend.';
+                }
+
+                const selectedLogs = getLogsForDate(selectedDate);
+                historyCount.textContent = `${selectedLogs.length} log${selectedLogs.length > 1 ? 's' : ''}`;
+
+                updatePendingCount();
+                renderMealList();
+                renderActivityList();
+            }
+
+            function getLogsForDate(date) {
+                return logs.filter(l => l.date === date);
+            }
+
+            // ---- Render Lists ----
+            function renderMealList() {
+                const todayMeals = logs.filter(l => l.date === selectedDate && l.type === 'Meal');
+                if (todayMeals.length === 0) {
+                    mealList.innerHTML =
+                        `<div class="empty-state" style="padding:8px;"><p style="font-size:12px;">No meals logged today.</p></div>`;
+                    return;
+                }
+
+                let html = '';
+                todayMeals.forEach((log, idx) => {
+                    const actualIndex = logs.indexOf(log);
+                    const isPending = log.pending_sync || (log.local_id && !log.id);
+                    const statusIcon = isPending ? '📱' : '☁️';
+                    html += `
+                        <div class="log-item">
+                            <span class="log-time">${log.time || '—'}</span>
+                            <span class="log-text">${log.value || '—'}</span>
+                            <span class="log-status">${statusIcon}</span>
+                            <div class="log-actions">
+                                <button class="time-edit-btn" data-index="${actualIndex}" title="Edit Time">⏱️</button>
+                                <button class="delete-btn" data-index="${actualIndex}" title="Delete">🗑️</button>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                mealList.innerHTML = html;
+
+                mealList.querySelectorAll('.time-edit-btn').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const idx = parseInt(this.dataset.index, 10);
+                        openTimeEdit(idx);
+                    });
+                });
+
+                mealList.querySelectorAll('.delete-btn').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const idx = parseInt(this.dataset.index, 10);
+                        deleteLog(idx);
+                    });
+                });
+            }
+
+            function renderActivityList() {
+                const todayActivities = logs.filter(l => l.date === selectedDate && l.type === 'Activity');
+                if (todayActivities.length === 0) {
+                    activityList.innerHTML =
+                        `<div class="empty-state" style="padding:8px;"><p style="font-size:12px;">No activities logged today.</p></div>`;
+                    return;
+                }
+
+                let html = '';
+                todayActivities.forEach((log, idx) => {
+                    const actualIndex = logs.indexOf(log);
+                    const isPending = log.pending_sync || (log.local_id && !log.id);
+                    const statusIcon = isPending ? '📱' : '☁️';
+                    html += `
+                        <div class="log-item">
+                            <span class="log-time">${log.time || '—'}</span>
+                            <span class="log-text">${log.value || '—'}</span>
+                            <span class="log-status">${statusIcon}</span>
+                            <div class="log-actions">
+                                <button class="time-edit-btn" data-index="${actualIndex}" title="Edit Time">⏱️</button>
+                                <button class="delete-btn" data-index="${actualIndex}" title="Delete">🗑️</button>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                activityList.innerHTML = html;
+
+                activityList.querySelectorAll('.time-edit-btn').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const idx = parseInt(this.dataset.index, 10);
+                        openTimeEdit(idx);
+                    });
+                });
+
+                activityList.querySelectorAll('.delete-btn').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const idx = parseInt(this.dataset.index, 10);
+                        deleteLog(idx);
+                    });
+                });
+            }
+
+            function renderHistory() {
+                const selectedLogs = getLogsForDate(selectedDate);
+
+                if (selectedLogs.length === 0) {
+                    entriesList.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-icon">📭</div>
+                            <p>No logs for ${formatDateDisplay(selectedDate)} yet. Start sending metrics!</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                let html = '';
+                selectedLogs.forEach((log, idx) => {
+                    const actualIndex = logs.indexOf(log);
+                    const displayValue = getValueDisplay(log.value);
+                    const isEditing = editState && editState.index === actualIndex;
+                    const isPending = log.pending_sync || (log.local_id && !log.id);
+                    const statusText = isPending ? '📱 Pending' : '☁️ Synced';
+                    const statusClass = isPending ? 'pending' : 'synced';
+                    const hasTimeEdit = (log.type === 'Meal' || log.type === 'Activity');
+
+                    html += `
+                        <div class="entry-item ${isEditing ? 'editing' : ''} ${isPending ? 'offline' : ''}">
+                            <div class="entry-time">${log.time || '—'}</div>
+                            <div class="entry-type">${log.type || '—'}</div>
+                            <div class="entry-value">${displayValue}</div>
+                            <span class="entry-status ${statusClass}">${statusText}</span>
+                            <div class="entry-actions">
+                                <button class="edit-btn" data-index="${actualIndex}" title="Edit Text">✏️</button>
+                                ${hasTimeEdit ? `<button class="time-edit-btn" data-index="${actualIndex}" title="Edit Time">⏱️</button>` : ''}
+                                <button class="delete-btn" data-index="${actualIndex}" title="Delete">🗑️</button>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                entriesList.innerHTML = html;
+
+                entriesList.querySelectorAll('.edit-btn').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const idx = parseInt(this.dataset.index, 10);
+                        const log = logs[idx];
+                        if (log) {
+                            setEditState(idx, log.type, log.value);
+                        }
+                    });
+                });
+
+                entriesList.querySelectorAll('.time-edit-btn').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const idx = parseInt(this.dataset.index, 10);
+                        openTimeEdit(idx);
+                    });
+                });
+
+                entriesList.querySelectorAll('.delete-btn').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const idx = parseInt(this.dataset.index, 10);
+                        deleteLog(idx);
+                    });
+                });
+            }
+
+            // ---- Charts ----
+            function destroyCharts() {
+                Object.keys(chartInstances).forEach(key => {
+                    if (chartInstances[key]) {
+                        chartInstances[key].destroy();
+                        delete chartInstances[key];
+                    }
+                });
+                chartInstances = {};
+            }
+
+            function timeToMinutes(timeStr) {
+                if (!timeStr) return null;
+                const parts = timeStr.split(':');
+                if (parts.length !== 2) return null;
+                const h = parseInt(parts[0]);
+                const m = parseInt(parts[1]);
+                if (isNaN(h) || isNaN(m)) return null;
+                return h * 60 + m;
+            }
+
+            function minutesToTime(minutes) {
+                if (minutes === null || minutes === undefined || isNaN(minutes)) return '';
+                const h = Math.floor(minutes / 60);
+                const m = Math.round(minutes % 60);
+                return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+            }
+
+            function getDateRange(logsData) {
+                if (logsData.length === 0) return [];
+                const dates = logsData.map(l => l.date);
+                const uniqueDates = [...new Set(dates)].sort();
+                return uniqueDates;
+            }
+
+            function createTrendChart(canvas, label, logsData, isTime = false, color = '#7C5CFC') {
+                if (!canvas) return;
+
+                if (logsData.length === 0) {
+                    const ctx = canvas.getContext('2d');
+                    chartInstances[label] = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: [],
+                            datasets: [{
+                                label: label,
+                                data: [],
+                                borderColor: color,
+                                backgroundColor: color + '20',
+                                fill: false,
+                                tension: 0.2,
+                                pointRadius: 5,
+                                pointBackgroundColor: color,
+                                pointBorderColor: '#fff',
+                                pointBorderWidth: 2,
+                                spanGaps: true
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: true,
+                            plugins: { legend: { display: false } },
+                            scales: {
+                                x: { title: { display: true, text: 'Date' } },
+                                y: { title: { display: true, text: label } }
+                            }
+                        }
+                    });
+                    return;
+                }
+
+                const allDates = getDateRange(logsData);
+                const dateValueMap = {};
+                logsData.forEach(log => {
+                    if (!dateValueMap[log.date]) {
+                        dateValueMap[log.date] = [];
+                    }
+                    let value = log.value;
+                    if (isTime) {
+                        value = timeToMinutes(log.value);
+                    } else {
+                        value = parseFloat(log.value);
+                    }
+                    if (value !== null && value !== undefined && !isNaN(value)) {
+                        dateValueMap[log.date].push(value);
+                    }
+                });
+
+                const dataPoints = [];
+                allDates.forEach(date => {
+                    if (dateValueMap[date] && dateValueMap[date].length > 0) {
+                        dateValueMap[date].forEach(val => {
+                            dataPoints.push({ x: date, y: val });
+                        });
+                    } else {
+                        dataPoints.push({ x: date, y: null });
+                    }
+                });
+
+                dataPoints.sort((a, b) => a.x.localeCompare(b.x));
+
+                const labels = dataPoints.map(d => formatDateShort(d.x));
+                const values = dataPoints.map(d => d.y);
+
+                const validValues = values.filter(v => v !== null && v !== undefined && !isNaN(v));
+                let yMin = 0;
+                let yMax = isTime ? 1440 : 10;
+                if (validValues.length > 0) {
+                    const minVal = Math.min(...validValues);
+                    const maxVal = Math.max(...validValues);
+                    if (isTime) {
+                        const padding = 30;
+                        yMin = Math.max(0, minVal - padding);
+                        yMax = Math.min(1440, maxVal + padding);
+                    } else {
+                        const padding = 1;
+                        yMin = Math.max(0, minVal - padding);
+                        yMax = Math.max(10, maxVal + padding);
+                    }
+                }
+
+                const ctx = canvas.getContext('2d');
+
+                const chartConfig = {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: label,
+                            data: values,
+                            borderColor: color,
+                            backgroundColor: color + '20',
+                            fill: false,
+                            tension: 0.2,
+                            pointRadius: 5,
+                            pointBackgroundColor: color,
+                            pointBorderColor: '#fff',
+                            pointBorderWidth: 2,
+                            spanGaps: false
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const rawValue = context.parsed.y;
+                                        if (rawValue === null || rawValue === undefined) return 'No data';
+                                        if (isTime) {
+                                            return minutesToTime(rawValue);
+                                        }
+                                        return rawValue.toString();
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                title: { display: true, text: 'Date', font: { weight: 'bold' } },
+                                ticks: { autoSkip: true, maxTicksLimit: 15, maxRotation: 45, minRotation: 30 }
+                            },
+                            y: {
+                                title: { display: true, text: label, font: { weight: 'bold' } },
+                                min: yMin,
+                                max: yMax,
+                                ticks: {
+                                    callback: function(value) {
+                                        if (isTime) {
+                                            return minutesToTime(value);
+                                        }
+                                        return value;
+                                    },
+                                    stepSize: isTime ? 30 : 1
+                                }
+                            }
+                        }
+                    }
+                };
+
+                chartInstances[label] = new Chart(ctx, chartConfig);
+            }
+
+            function createCountChart(canvas, label, logsData, color = '#ED64A6') {
+                if (!canvas) return;
+
+                const allDates = [...new Set(logs.map(l => l.date))].sort();
+
+                if (allDates.length === 0) {
+                    const ctx = canvas.getContext('2d');
+                    chartInstances[label] = new Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels: [],
+                            datasets: [{
+                                label: label,
+                                data: [],
+                                backgroundColor: color,
+                                borderRadius: 4
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: true,
+                            plugins: { legend: { display: false } },
+                            scales: {
+                                x: { title: { display: true, text: 'Date' } },
+                                y: { beginAtZero: true, ticks: { stepSize: 1 } }
+                            }
+                        }
+                    });
+                    return;
+                }
+
+                const dateCounts = {};
+                allDates.forEach(date => {
+                    dateCounts[date] = logsData.filter(l => l.date === date).length;
+                });
+
+                const labels = allDates.map(d => formatDateShort(d));
+                const values = allDates.map(d => dateCounts[d]);
+
+                const ctx = canvas.getContext('2d');
+
+                const chartConfig = {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: label,
+                            data: values,
+                            backgroundColor: color,
+                            borderColor: color,
+                            borderWidth: 1,
+                            borderRadius: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        return `${context.parsed.y} ${label.toLowerCase()}`;
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                title: { display: true, text: 'Date', font: { weight: 'bold' } },
+                                ticks: { autoSkip: true, maxTicksLimit: 15, maxRotation: 45, minRotation: 30 }
+                            },
+                            y: {
+                                title: { display: true, text: 'Count', font: { weight: 'bold' } },
+                                beginAtZero: true,
+                                ticks: { stepSize: 1 }
+                            }
+                        }
+                    }
+                };
+
+                chartInstances[label] = new Chart(ctx, chartConfig);
+            }
+
+            function renderCharts() {
+                destroyCharts();
+
+                const wakeLogs = logs.filter(l => l.type === 'Wake Time');
+                const contactLogs = logs.filter(l => l.type === 'First Contact');
+                const startLogs = logs.filter(l => l.type === 'Start Activity');
+                const bedLogs = logs.filter(l => l.type === 'Bedtime');
+                const moodLogs = logs.filter(l => l.type === 'Mood');
+                const energyLogs = logs.filter(l => l.type === 'Energy');
+                const anxietyLogs = logs.filter(l => l.type === 'Anxiety');
+                const irritabilityLogs = logs.filter(l => l.type === 'Irritability');
+
+                createTrendChart(wakeCanvas, 'Wake Time', wakeLogs, true, '#7C5CFC');
+                createTrendChart(firstContactCanvas, 'First Contact', contactLogs, true, '#9F7AEA');
+                createTrendChart(startActivityCanvas, 'Start Activity', startLogs, true, '#B794F4');
+                createTrendChart(bedtimeCanvas, 'Bedtime', bedLogs, true, '#6B46C1');
+                createTrendChart(anxietyCanvas, 'Anxiety', anxietyLogs, false, '#9F7AEA');
+                createTrendChart(irritabilityCanvas, 'Irritability', irritabilityLogs, false, '#ED64A6');
+
+                // Mood & Energy combined chart
+                const moodLabels = moodLogs.map(l => l.date.slice(5) + ' ' + l.time.slice(0, 5));
+                const moodValues = moodLogs.map(l => parseInt(l.value, 10));
+                const energyLabels = energyLogs.map(l => l.date.slice(5) + ' ' + l.time.slice(0, 5));
+                const energyValues = energyLogs.map(l => parseInt(l.value, 10));
+
+                if (moodValues.length > 0 || energyValues.length > 0) {
+                    const ctx = moodEnergyCanvas.getContext('2d');
+                    const datasets = [];
+                    if (moodValues.length > 0) {
+                        datasets.push({
+                            label: 'Mood',
+                            data: moodValues,
+                            borderColor: '#48BB78',
+                            backgroundColor: 'rgba(72, 187, 120, 0.1)',
+                            tension: 0.2,
+                            fill: true,
+                            pointRadius: 3
+                        });
+                    }
+                    if (energyValues.length > 0) {
+                        datasets.push({
+                            label: 'Energy',
+                            data: energyValues,
+                            borderColor: '#F6AD55',
+                            backgroundColor: 'rgba(246, 173, 85, 0.1)',
+                            tension: 0.2,
+                            fill: true,
+                            pointRadius: 3,
+                            borderDash: [5, 5]
+                        });
+                    }
+                    chartInstances.moodEnergy = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: moodValues.length > 0 ? moodLabels : energyLabels,
+                            datasets: datasets
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: true,
+                            plugins: { legend: { position: 'top' } },
+                            scales: { y: { min: 0, max: 10, ticks: { stepSize: 1 } } }
+                        }
+                    });
+                }
+
+                // Issues Frequency
+                const issueLogs = logs.filter(l => l.type === 'Issues');
+                const issueCounts = {};
+                issueLogs.forEach(l => {
+                    if (Array.isArray(l.value)) {
+                        l.value.forEach(issue => {
+                            issueCounts[issue] = (issueCounts[issue] || 0) + 1;
+                        });
+                    }
+                });
+                const issueLabels = Object.keys(issueCounts);
+                const issueData = Object.values(issueCounts);
+                if (issueLabels.length > 0 && issuesCanvas) {
+                    const ctx = issuesCanvas.getContext('2d');
+                    chartInstances.issues = new Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels: issueLabels,
+                            datasets: [{
+                                label: 'Frequency',
+                                data: issueData,
+                                backgroundColor: ['#7C5CFC', '#9F7AEA', '#B794F4', '#ED64A6', '#F687B3', '#D6BCFA'],
+                                borderRadius: 4
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: true,
+                            plugins: { legend: { display: false } },
+                            scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+                        }
+                    });
+                }
+
+                // Activity Types
+                const typeLogs = logs.filter(l => l.type === 'Activity Type');
+                const typeCounts = {};
+                typeLogs.forEach(l => {
+                    const type = l.value || 'Other';
+                    typeCounts[type] = (typeCounts[type] || 0) + 1;
+                });
+                const typeLabels = Object.keys(typeCounts);
+                const typeData = Object.values(typeCounts);
+                if (typeLabels.length > 0 && activityTypeCanvas) {
+                    const colors = ['#7C5CFC', '#9F7AEA', '#B794F4', '#ED64A6', '#F687B3', '#D6BCFA'];
+                    const ctx = activityTypeCanvas.getContext('2d');
+                    chartInstances.activityType = new Chart(ctx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: typeLabels,
+                            datasets: [{
+                                data: typeData,
+                                backgroundColor: colors.slice(0, typeLabels.length),
+                                borderWidth: 1
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: true,
+                            plugins: { legend: { position: 'bottom' } }
+                        }
+                    });
+                }
+
+                // Meals per Day chart
+                const mealLogs = logs.filter(l => l.type === 'Meal');
+                createCountChart(mealsCanvas, 'Meals', mealLogs, '#ED64A6');
+
+                // Activities per Day chart
+                const actLogs = logs.filter(l => l.type === 'Activity');
+                createCountChart(activitiesCanvas, 'Activities', actLogs, '#9F7AEA');
+            }
+
+            // ---- Refresh ----
+            function refreshUI() {
+                computeStats();
+                renderHistory();
+                renderCharts();
+            }
+
+            // ---- Toast ----
+            let toastTimeout = null;
+
+            function showToast(message, type = 'info') {
+                if (!toast) return;
+                toast.textContent = message;
+                toast.className = 'toast ' + type + ' show';
+                clearTimeout(toastTimeout);
+                toastTimeout = setTimeout(() => {
+                    toast.classList.remove('show');
+                }, 2500);
+            }
+
+            // ---- Send Handlers ----
+            function sendMetric(type, value, field) {
+                if (!value || value === '') {
+                    showToast(`⚠️ Please enter a value for ${type}`, 'error');
+                    return;
+                }
+
+                if (editState && editState.type === type) {
+                    updateLog(editState.index, type, value);
+                    if (field) field.value = '';
+                    return;
+                }
+
+                addLog(type, value);
+                if (field) field.value = '';
+            }
+
+            function sendIssuesHandler() {
+                const issues = getIssueLabels();
+                if (issues.length === 0) {
+                    showToast('⚠️ Please select at least one issue', 'error');
+                    return;
+                }
+                if (editState && editState.type === 'Issues') {
+                    updateLog(editState.index, 'Issues', issues);
+                    issueGrief.checked = false;
+                    issueDispute.checked = false;
+                    issueTransition.checked = false;
+                    issueDeficit.checked = false;
+                    issueGroupTherapy.checked = false;
+                    issueLotOfCommunication.checked = false;
+                    return;
+                }
+                addLog('Issues', issues);
+                issueGrief.checked = false;
+                issueDispute.checked = false;
+                issueTransition.checked = false;
+                issueDeficit.checked = false;
+                issueGroupTherapy.checked = false;
+                issueLotOfCommunication.checked = false;
+            }
+
+            function logMeal() {
+                const value = mealInput.value.trim();
+                if (!value) {
+                    showToast('⚠️ Please enter what you ate', 'error');
+                    return;
+                }
+                if (editState && editState.type === 'Meal') {
+                    updateLog(editState.index, 'Meal', value);
+                    mealInput.value = '';
+                    return;
+                }
+                addLog('Meal', value);
+                mealInput.value = '';
+            }
+
+            function logActivity() {
+                const value = activityInput.value.trim();
+                if (!value) {
+                    showToast('⚠️ Please enter what you did', 'error');
+                    return;
+                }
+                if (editState && editState.type === 'Activity') {
+                    updateLog(editState.index, 'Activity', value);
+                    activityInput.value = '';
+                    return;
+                }
+                addLog('Activity', value);
+                activityInput.value = '';
+            }
+
+            async function syncData() {
+                if (!isOnline) {
+                    showToast('⚠️ You are offline. Cannot sync.', 'warning');
+                    return;
+                }
+                await syncOfflineLogs();
+            }
+
+            // ---- Init ----
+            async function init() {
+                if (!document.getElementById('app')) {
+                    console.error('❌ App not found');
+                    return;
+                }
+
+                window.addEventListener('online', handleOnline);
+                window.addEventListener('offline', handleOffline);
+
+                if (!isOnline) {
+                    setSyncStatus('offline', '⚠️ Offline mode');
+                }
+
+                setSyncStatus('', '⏳ Connecting...');
+
+                const authSuccess = await signInAnonymously();
+                if (authSuccess) {
+                    await loadLogsFromSupabase();
+                    if (!lastSyncTime) {
+                        updateLastSync();
+                    }
+                } else {
+                    const offline = getOfflineLogs();
+                    logs = [...offline];
+                    showToast('⚠️ Offline mode. Data saved locally.', 'warning');
+                    setSyncStatus('offline', '⚠️ Offline mode');
+                }
+
+                const today = getToday();
+                if (datePicker) datePicker.value = today;
+                selectedDate = today;
+                const displayDate = formatDateDisplay(today);
+                if (logDateBadge) logDateBadge.textContent = formatDateShort(today);
+                if (historyDateLabel) historyDateLabel.textContent = displayDate;
+                if (selectedDateDisplay) {
+                    selectedDateDisplay.textContent = displayDate;
+                }
+
+                if (datePicker) {
+                    datePicker.addEventListener('change', function(e) {
+                        e.stopPropagation();
+                        if (this.value) {
+                            setSelectedDate(this.value);
+                        }
+                    });
+                }
+
+                if (goToTodayBtn) {
+                    goToTodayBtn.addEventListener('click', goToToday);
+                }
+
+                if (syncBtn) {
+                    syncBtn.addEventListener('click', syncData);
+                }
+
+                timeEditCancel.addEventListener('click', closeTimeEdit);
+                timeEditSave.addEventListener('click', saveTimeEdit);
+                timeEditOverlay.addEventListener('click', function(e) {
+                    if (e.target === this) closeTimeEdit();
+                });
+                document.addEventListener('keydown', function(e) {
+                    if (e.key === 'Escape') closeTimeEdit();
+                });
+
+                const now = new Date();
+                const h = String(now.getHours()).padStart(2, '0');
+                const m = String(now.getMinutes()).padStart(2, '0');
+                const defaultTime = h + ':' + m;
+                if (wakeTime && !wakeTime.value) wakeTime.value = defaultTime;
+                if (firstContact && !firstContact.value) firstContact.value = defaultTime;
+                if (startActivity && !startActivity.value) startActivity.value = defaultTime;
+                if (bedtime && !bedtime.value) bedtime.value = '22:30';
+
+                // ===== СЛАЙДЕРЫ =====
+                if (moodSlider && moodDisplay) {
+                    moodSlider.addEventListener('input', function() {
+                        moodDisplay.textContent = this.value;
+                    });
+                    moodDisplay.textContent = moodSlider.value;
+                }
+
+                if (energySlider && energyDisplay) {
+                    energySlider.addEventListener('input', function() {
+                        energyDisplay.textContent = this.value;
+                    });
+                    energyDisplay.textContent = energySlider.value;
+                }
+
+                if (anxietySlider && anxietyDisplay) {
+                    anxietySlider.addEventListener('input', function() {
+                        anxietyDisplay.textContent = this.value;
+                    });
+                    anxietyDisplay.textContent = anxietySlider.value;
+                }
+
+                if (irritabilitySlider && irritabilityDisplay) {
+                    irritabilitySlider.addEventListener('input', function() {
+                        irritabilityDisplay.textContent = this.value;
+                    });
+                    irritabilityDisplay.textContent = irritabilitySlider.value;
+                }
+
+                // ===== КНОПКИ SEND =====
+                if (sendWakeBtn) {
+                    sendWakeBtn.addEventListener('click', function() {
+                        sendMetric('Wake Time', wakeTime ? wakeTime.value : '', wakeTime);
+                    });
+                }
+                if (sendFirstContactBtn) {
+                    sendFirstContactBtn.addEventListener('click', function() {
+                        sendMetric('First Contact', firstContact ? firstContact.value : '', firstContact);
+                    });
+                }
+                if (sendStartActivityBtn) {
+                    sendStartActivityBtn.addEventListener('click', function() {
+                        sendMetric('Start Activity', startActivity ? startActivity.value : '', startActivity);
+                    });
+                }
+                if (sendBedtimeBtn) {
+                    sendBedtimeBtn.addEventListener('click', function() {
+                        sendMetric('Bedtime', bedtime ? bedtime.value : '', bedtime);
+                    });
+                }
+                if (sendActivityTypeBtn) {
+                    sendActivityTypeBtn.addEventListener('click', function() {
+                        sendMetric('Activity Type', activityType ? activityType.value : '', activityType);
+                    });
+                }
+
+                if (sendMoodBtn) {
+                    sendMoodBtn.addEventListener('click', function() {
+                        const val = moodSlider ? moodSlider.value : 6;
+                        sendMetric('Mood', parseInt(val, 10));
+                    });
+                }
+
+                if (sendEnergyBtn) {
+                    sendEnergyBtn.addEventListener('click', function() {
+                        const val = energySlider ? energySlider.value : 6;
+                        sendMetric('Energy', parseInt(val, 10));
+                    });
+                }
+
+                if (sendAnxietyBtn) {
+                    sendAnxietyBtn.addEventListener('click', function() {
+                        const val = anxietySlider ? anxietySlider.value : 6;
+                        sendMetric('Anxiety', parseInt(val, 10));
+                    });
+                }
+
+                if (sendIrritabilityBtn) {
+                    sendIrritabilityBtn.addEventListener('click', function() {
+                        const val = irritabilitySlider ? irritabilitySlider.value : 6;
+                        sendMetric('Irritability', parseInt(val, 10));
+                    });
+                }
+
+                if (sendIssuesBtn) {
+                    sendIssuesBtn.addEventListener('click', sendIssuesHandler);
+                }
+
+                if (sendNotesBtn) {
+                    sendNotesBtn.addEventListener('click', function() {
+                        const val = notes ? notes.value.trim() : '';
+                        if (!val) {
+                            showToast('⚠️ Please type a note', 'error');
+                            return;
+                        }
+                        sendMetric('Note', val, notes);
+                    });
+                }
+
+                if (logMealBtn) {
+                    logMealBtn.addEventListener('click', logMeal);
+                }
+                if (mealInput) {
+                    mealInput.addEventListener('keydown', function(e) {
+                        if (e.key === 'Enter') logMeal();
+                    });
+                }
+
+                if (logActivityBtn) {
+                    logActivityBtn.addEventListener('click', logActivity);
+                }
+                if (activityInput) {
+                    activityInput.addEventListener('keydown', function(e) {
+                        if (e.key === 'Enter') logActivity();
+                    });
+                }
+
+                if (cancelEditBtn) {
+                    cancelEditBtn.addEventListener('click', function() {
+                        clearEditState();
+                        showToast('✖️ Edit cancelled', 'info');
+                    });
+                }
+
+                if (clearAllBtn) {
+                    clearAllBtn.addEventListener('click', clearAll);
+                }
+                if (exportBtn) {
+                    exportBtn.addEventListener('click', exportJSON);
+                }
+
+                refreshUI();
+                updatePendingCount();
+
+                if (isOnline) {
+                    const pending = getOfflineLogs().filter(l => l.pending_sync && !l._deleted);
+                    if (pending.length > 0) {
+                        setTimeout(function() { syncOfflineLogs(); }, 1000);
+                    }
+                }
+
+                document.addEventListener('keydown', function(e) {
+                    if (e.key === 'Escape') {
+                        if (editState) {
+                            clearEditState();
+                            showToast('✖️ Edit cancelled', 'info');
+                        }
+                    }
+                    if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') {
+                        const metricRow = e.target.closest('.metric-row');
+                        if (metricRow) {
+                            const sendBtn = metricRow.querySelector('.send-btn');
+                            if (sendBtn) sendBtn.click();
+                        }
+                    }
+                });
+
+                console.log('✅ App initialized');
+            }
+
+            // Check libraries
+            if (typeof Chart !== 'undefined' && typeof window.supabase !== 'undefined') {
+                init();
+            } else {
+                let checks = 0;
+                const checkLibraries = setInterval(function() {
+                    checks++;
+                    if (typeof Chart !== 'undefined' && typeof window.supabase !== 'undefined') {
+                        clearInterval(checkLibraries);
+                        init();
+                    } else if (checks > 20) {
+                        clearInterval(checkLibraries);
+                        document.body.innerHTML = `
+                            <div style="padding:40px;text-align:center;font-family:Arial,sans-serif;">
+                                <h2>❌ Failed to load required libraries</h2>
+                                <p>Please check your internet connection and refresh the page.</p>
+                                <p style="font-size:12px;color:#888;margin-top:20px;">If the problem persists, open the browser console (F12) to view errors.</p>
+                            </div>
+                        `;
+                    }
+                }, 500);
+            }
+        })();
+    </script>
+</body>
+</html>
