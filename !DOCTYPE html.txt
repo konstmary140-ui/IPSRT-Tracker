@@ -1,0 +1,2230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>IPSRT Tracker - Cloud Sync</title>
+    <!-- Supabase Client Library -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.6/dist/umd/supabase.min.js">
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js">
+    </script>
+    <style>
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --primary: #4A6CF7;
+            --primary-light: #6B8AFF;
+            --primary-dark: #3458D6;
+            --secondary: #7C5CFC;
+            --bg: #F0F4FF;
+            --card-bg: #FFFFFF;
+            --text: #1A1A2E;
+            --text-light: #5A5A7A;
+            --border: #E2E8F0;
+            --shadow: 0 8px 30px rgba(74, 108, 247, 0.12);
+            --radius: 16px;
+            --radius-sm: 10px;
+            --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            --font: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            --success: #2D7A4F;
+            --danger: #C53030;
+            --orange: #F7A072;
+            --teal: #38B2AC;
+            --purple: #805AD5;
+            --edit-bg: #FFF8E7;
+            --edit-border: #FFD93D;
+        }
+
+        body {
+            font-family: var(--font);
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: var(--bg);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--primary-light);
+            border-radius: 10px;
+        }
+
+        .app-container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .app-header {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 24px;
+            background: var(--card-bg);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            margin-bottom: 24px;
+        }
+        .app-header .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .app-header .brand-icon {
+            width: 42px;
+            height: 42px;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-size: 22px;
+            font-weight: 700;
+        }
+        .app-header h1 {
+            font-size: 20px;
+            font-weight: 700;
+            letter-spacing: -0.3px;
+        }
+        .app-header h1 span {
+            color: var(--primary);
+        }
+        .app-header .subtitle {
+            font-size: 13px;
+            color: var(--text-light);
+            font-weight: 400;
+        }
+        .app-header .sync-status {
+            font-size: 11px;
+            padding: 4px 12px;
+            border-radius: 20px;
+            background: var(--bg);
+            color: var(--text-light);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .app-header .sync-status.online {
+            background: var(--success);
+            color: #fff;
+        }
+        .app-header .sync-status.offline {
+            background: var(--danger);
+            color: #fff;
+        }
+        .app-header .sync-status.syncing {
+            background: var(--orange);
+            color: #fff;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0%,
+            100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        .header-date {
+            background: var(--bg);
+            padding: 6px 14px;
+            border-radius: 30px;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--primary-dark);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: var(--transition);
+            user-select: none;
+            border: none;
+            cursor: pointer;
+            font-family: var(--font);
+        }
+        .header-date:hover {
+            background: var(--primary);
+            color: #fff;
+            transform: scale(1.02);
+        }
+        .header-date .date-click-hint {
+            font-size: 10px;
+            opacity: 0.6;
+            font-weight: 400;
+        }
+        .header-date input[type="date"] {
+            background: transparent;
+            border: none;
+            color: inherit;
+            font-size: 14px;
+            font-weight: 500;
+            font-family: var(--font);
+            cursor: pointer;
+            padding: 0;
+            margin: 0;
+            width: auto;
+            min-width: 0;
+            outline: none;
+        }
+        .header-date input[type="date"]::-webkit-calendar-picker-indicator {
+            filter: invert(0.4);
+            cursor: pointer;
+            padding: 4px;
+        }
+        .header-date:hover input[type="date"]::-webkit-calendar-picker-indicator {
+            filter: invert(1);
+        }
+        .header-date input[type="date"]::-webkit-datetime-edit {
+            padding: 0;
+            color: inherit;
+        }
+        .header-date input[type="date"]:focus {
+            outline: none;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .btn-today {
+            background: var(--success);
+            color: #fff;
+            border: none;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            font-family: var(--font);
+        }
+        .btn-today:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 14px rgba(45, 122, 79, 0.35);
+        }
+        .btn-sync {
+            background: var(--primary);
+            color: #fff;
+            border: none;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            font-family: var(--font);
+        }
+        .btn-sync:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 14px rgba(74, 108, 247, 0.35);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+        .stat-card {
+            background: var(--card-bg);
+            border-radius: var(--radius-sm);
+            padding: 12px 14px;
+            box-shadow: var(--shadow);
+            text-align: center;
+        }
+        .stat-card .stat-value {
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--primary);
+        }
+        .stat-card .stat-label {
+            font-size: 10px;
+            color: var(--text-light);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 3px;
+        }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+        @media (max-width: 820px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 18px 20px 22px;
+            transition: var(--transition);
+        }
+        .card:hover {
+            box-shadow: 0 12px 40px rgba(74, 108, 247, 0.15);
+        }
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 14px;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .card-header h2 {
+            font-size: 16px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .card-header h2 .emoji {
+            font-size: 18px;
+        }
+        .card-header .badge {
+            font-size: 10px;
+            background: var(--bg);
+            padding: 3px 10px;
+            border-radius: 20px;
+            color: var(--text-light);
+        }
+
+        .metric-group {
+            margin-bottom: 14px;
+            padding-bottom: 14px;
+            border-bottom: 1px solid var(--border);
+        }
+        .metric-group:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+        .metric-group label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text);
+            margin-bottom: 4px;
+        }
+        .metric-group .metric-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .metric-group .metric-row input[type="time"],
+        .metric-group .metric-row input[type="text"],
+        .metric-group .metric-row select {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1.5px solid var(--border);
+            border-radius: var(--radius-sm);
+            font-size: 14px;
+            font-family: var(--font);
+            background: #FAFBFF;
+            transition: var(--transition);
+            color: var(--text);
+            min-width: 0;
+        }
+        .metric-group .metric-row input:focus,
+        .metric-group .metric-row select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(74, 108, 247, 0.15);
+            background: #fff;
+        }
+        .metric-group .metric-row input.editing {
+            border-color: var(--edit-border);
+            background: var(--edit-bg);
+            box-shadow: 0 0 0 3px rgba(255, 217, 61, 0.25);
+        }
+        .metric-group .metric-row .send-btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: var(--radius-sm);
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .metric-group .metric-row .send-btn:hover {
+            transform: translateY(-1px);
+        }
+        .metric-group .metric-row .send-btn:active {
+            transform: translateY(0);
+        }
+        .send-btn-blue {
+            background: var(--primary);
+            color: #fff;
+        }
+        .send-btn-blue:hover {
+            box-shadow: 0 4px 14px rgba(74, 108, 247, 0.35);
+        }
+        .send-btn-green {
+            background: var(--success);
+            color: #fff;
+        }
+        .send-btn-green:hover {
+            box-shadow: 0 4px 14px rgba(45, 122, 79, 0.35);
+        }
+        .send-btn-orange {
+            background: var(--orange);
+            color: #fff;
+        }
+        .send-btn-orange:hover {
+            box-shadow: 0 4px 14px rgba(247, 160, 114, 0.35);
+        }
+        .send-btn-teal {
+            background: var(--teal);
+            color: #fff;
+        }
+        .send-btn-teal:hover {
+            box-shadow: 0 4px 14px rgba(56, 178, 172, 0.35);
+        }
+        .send-btn-purple {
+            background: var(--purple);
+            color: #fff;
+        }
+        .send-btn-purple:hover {
+            box-shadow: 0 4px 14px rgba(128, 90, 213, 0.35);
+        }
+        .send-btn-pink {
+            background: #D53F8C;
+            color: #fff;
+        }
+        .send-btn-pink:hover {
+            box-shadow: 0 4px 14px rgba(213, 63, 140, 0.35);
+        }
+        .send-btn-update {
+            background: var(--edit-border);
+            color: var(--text);
+            box-shadow: 0 0 0 2px var(--edit-border);
+        }
+        .send-btn-update:hover {
+            box-shadow: 0 4px 14px rgba(255, 217, 61, 0.5);
+        }
+
+        .slider-wrap {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex: 1;
+        }
+        .slider-wrap input[type="range"] {
+            flex: 1;
+            -webkit-appearance: none;
+            height: 6px;
+            border-radius: 10px;
+            outline: none;
+        }
+        .slider-wrap input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: var(--primary);
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(74, 108, 247, 0.3);
+            border: 2px solid #fff;
+        }
+        .slider-wrap .value {
+            font-size: 20px;
+            font-weight: 700;
+            min-width: 32px;
+            text-align: center;
+            color: var(--primary);
+        }
+        #moodSlider {
+            background: linear-gradient(to right, #FF6B6B, #FFD93D, #6BCB77);
+        }
+        #energySlider {
+            background: linear-gradient(to right, #A8D0E6, #F3B0A0, #E27D60);
+        }
+
+        .issue-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        @media (max-width: 480px) {
+            .issue-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        .issue-check {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: #FAFBFF;
+            border-radius: var(--radius-sm);
+            border: 1.5px solid var(--border);
+            transition: var(--transition);
+            cursor: pointer;
+        }
+        .issue-check:hover {
+            border-color: var(--primary-light);
+            background: #F5F8FF;
+        }
+        .issue-check input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            accent-color: var(--primary);
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+        .issue-check label {
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            color: var(--text);
+        }
+
+        .btn-outline {
+            background: transparent;
+            color: var(--primary);
+            border: 1.5px solid var(--primary);
+            padding: 8px 18px;
+            border-radius: var(--radius-sm);
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            font-family: var(--font);
+        }
+        .btn-outline:hover {
+            background: var(--primary);
+            color: #fff;
+        }
+        .btn-danger-outline {
+            background: transparent;
+            color: var(--danger);
+            border: 1.5px solid var(--danger);
+            padding: 8px 18px;
+            border-radius: var(--radius-sm);
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            font-family: var(--font);
+        }
+        .btn-danger-outline:hover {
+            background: var(--danger);
+            color: #fff;
+        }
+        .btn-sm {
+            padding: 5px 12px;
+            font-size: 11px;
+        }
+
+        .entries-list {
+            max-height: 500px;
+            overflow-y: auto;
+            margin-top: 6px;
+        }
+        .entry-item {
+            padding: 10px 14px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            transition: var(--transition);
+            border-radius: 6px;
+            font-size: 13px;
+        }
+        .entry-item:hover {
+            background: #F8FAFF;
+        }
+        .entry-item:last-child {
+            border-bottom: none;
+        }
+        .entry-item .entry-time {
+            font-weight: 600;
+            color: var(--primary);
+            min-width: 70px;
+            font-size: 12px;
+        }
+        .entry-item .entry-type {
+            font-weight: 600;
+            color: var(--text-light);
+            min-width: 70px;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        .entry-item .entry-value {
+            flex: 1;
+            color: var(--text);
+            word-break: break-word;
+        }
+        .entry-item .entry-actions {
+            display: flex;
+            gap: 4px;
+        }
+        .entry-item .entry-actions button {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            transition: var(--transition);
+            color: var(--text-light);
+        }
+        .entry-item .entry-actions button:hover {
+            background: var(--bg);
+            color: var(--text);
+        }
+        .entry-item .entry-actions .edit-btn:hover {
+            color: var(--edit-border);
+        }
+        .entry-item .entry-actions .delete-btn:hover {
+            color: var(--danger);
+        }
+
+        .entry-item.editing {
+            background: var(--edit-bg);
+            border-left: 3px solid var(--edit-border);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 24px 16px;
+            color: var(--text-light);
+        }
+        .empty-state .empty-icon {
+            font-size: 32px;
+            margin-bottom: 8px;
+            opacity: 0.5;
+        }
+        .empty-state p {
+            font-size: 13px;
+        }
+
+        .stability-ring {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            padding: 8px 0;
+            flex-wrap: wrap;
+        }
+        .stability-ring .ring {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            font-weight: 700;
+            color: #fff;
+            background: conic-gradient(var(--primary) 0% 70%, var(--border) 70% 100%);
+            position: relative;
+        }
+        .stability-ring .ring .inner {
+            width: 52px;
+            height: 52px;
+            border-radius: 50%;
+            background: var(--card-bg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            color: var(--text);
+        }
+        .stability-ring .ring-details {
+            font-size: 13px;
+            color: var(--text-light);
+        }
+        .stability-ring .ring-details strong {
+            color: var(--text);
+            display: block;
+            font-size: 16px;
+        }
+
+        .charts-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 24px;
+            margin-top: 24px;
+        }
+        .charts-grid .card {
+            padding: 14px 16px 18px;
+        }
+        .charts-grid .card canvas {
+            max-height: 200px;
+            max-width: 100%;
+        }
+        .chart-full {
+            grid-column: 1 / -1;
+        }
+        @media (max-width: 1024px) {
+            .charts-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+        @media (max-width: 700px) {
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: var(--text);
+            color: #fff;
+            padding: 12px 20px;
+            border-radius: var(--radius-sm);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+            font-size: 13px;
+            font-weight: 500;
+            transform: translateY(80px);
+            opacity: 0;
+            transition: all 0.4s ease;
+            z-index: 999;
+        }
+        .toast.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+        .toast.success {
+            background: var(--success);
+        }
+        .toast.error {
+            background: var(--danger);
+        }
+        .toast.info {
+            background: var(--primary);
+        }
+
+        .edit-indicator {
+            display: none;
+            font-size: 12px;
+            color: var(--edit-border);
+            font-weight: 600;
+            background: var(--edit-bg);
+            padding: 2px 10px;
+            border-radius: 12px;
+            border: 1px solid var(--edit-border);
+        }
+        .edit-indicator.active {
+            display: inline-block;
+        }
+
+        .chart-note {
+            font-size: 11px;
+            color: var(--text-light);
+            text-align: center;
+            margin-top: 6px;
+            font-style: italic;
+        }
+
+        @media (max-width: 600px) {
+            .app-header {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 10px;
+                padding: 14px;
+            }
+            .app-header .brand h1 {
+                font-size: 17px;
+            }
+            .header-date {
+                align-self: flex-start;
+                font-size: 13px;
+                flex-wrap: wrap;
+            }
+            .header-actions {
+                align-self: flex-start;
+            }
+            .card {
+                padding: 14px;
+            }
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            .metric-group .metric-row {
+                flex-wrap: wrap;
+            }
+            .metric-group .metric-row input,
+            .metric-group .metric-row select {
+                flex-basis: 100%;
+            }
+            .metric-group .metric-row .send-btn {
+                flex-basis: 100%;
+                justify-content: center;
+            }
+            .slider-wrap {
+                flex-wrap: wrap;
+            }
+            .entry-item {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 4px;
+            }
+            .entry-item .entry-actions {
+                justify-content: flex-end;
+            }
+        }
+        @media (max-width: 380px) {
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            .issue-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
+            animation: fadeInUp 0.4s ease forwards;
+        }
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(16px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container" id="app">
+
+        <div class="toast" id="toast"></div>
+
+        <header class="app-header">
+            <div class="brand">
+                <div class="brand-icon">🌊</div>
+                <div>
+                    <h1>IPSRT <span>Tracker</span></h1>
+                    <div class="subtitle">Cloud Sync · Interpersonal &amp; Social Rhythm</div>
+                </div>
+            </div>
+            <div class="header-actions">
+                <span class="sync-status" id="syncStatus">⏳ Connecting...</span>
+                <button class="btn-sync" id="syncBtn">🔄 Sync</button>
+                <button class="btn-today" id="goToTodayBtn">📅 Go to Today</button>
+                <button class="header-date" id="datePickerContainer">
+                    <span>📅</span>
+                    <input type="date" id="datePicker" />
+                    <span class="date-click-hint">✏️ click to change</span>
+                </button>
+            </div>
+        </header>
+
+        <div class="stats-grid" id="statsGrid">
+            <div class="stat-card">
+                <div class="stat-value" id="totalLogs">0</div>
+                <div class="stat-label">Total Logs</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="avgMood">—</div>
+                <div class="stat-label">Avg Mood</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="avgEnergy">—</div>
+                <div class="stat-label">Avg Energy</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="stabilityScore">—%</div>
+                <div class="stat-label">Stability</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="mealCount">0</div>
+                <div class="stat-label">Meals</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="activityCount">0</div>
+                <div class="stat-label">Activities</div>
+            </div>
+        </div>
+
+        <div class="main-grid">
+            <!-- Left: Real-time Loggers -->
+            <div>
+                <div class="card" id="logCard">
+                    <div class="card-header">
+                        <h2><span class="emoji">⚡</span> Real‑time Loggers</h2>
+                        <span class="badge" id="logDateBadge">Today</span>
+                        <span class="edit-indicator" id="editIndicator">✏️ Editing</span>
+                    </div>
+
+                    <!-- Wake Time -->
+                    <div class="metric-group">
+                        <label>🌅 Wake Time</label>
+                        <div class="metric-row">
+                            <input type="time" id="wakeTime" />
+                            <button class="send-btn send-btn-blue" id="sendWakeBtn">📤 Send</button>
+                        </div>
+                    </div>
+
+                    <!-- First Contact -->
+                    <div class="metric-group">
+                        <label>🤝 First Contact</label>
+                        <div class="metric-row">
+                            <input type="time" id="firstContact" />
+                            <button class="send-btn send-btn-blue" id="sendFirstContactBtn">📤 Send</button>
+                        </div>
+                    </div>
+
+                    <!-- Start Activity -->
+                    <div class="metric-group">
+                        <label>💼 Start Activity</label>
+                        <div class="metric-row">
+                            <input type="time" id="startActivity" />
+                            <button class="send-btn send-btn-blue" id="sendStartActivityBtn">📤 Send</button>
+                        </div>
+                    </div>
+
+                    <!-- Activity Type -->
+                    <div class="metric-group">
+                        <label>📌 Activity Type</label>
+                        <div class="metric-row">
+                            <select id="activityType">
+                                <option value="Work">Work</option>
+                                <option value="Hobbies">Hobbies</option>
+                                <option value="Studying">Studying</option>
+                                <option value="Chores">Chores</option>
+                            </select>
+                            <button class="send-btn send-btn-orange" id="sendActivityTypeBtn">📤 Send</button>
+                        </div>
+                    </div>
+
+                    <!-- Bedtime -->
+                    <div class="metric-group">
+                        <label>🌙 Bedtime</label>
+                        <div class="metric-row">
+                            <input type="time" id="bedtime" />
+                            <button class="send-btn send-btn-blue" id="sendBedtimeBtn">📤 Send</button>
+                        </div>
+                    </div>
+
+                    <!-- Mood -->
+                    <div class="metric-group">
+                        <label>😊 Mood</label>
+                        <div class="metric-row">
+                            <div class="slider-wrap">
+                                <input type="range" id="moodSlider" min="1" max="10" value="6" step="1" />
+                                <span class="value" id="moodDisplay">6</span>
+                            </div>
+                            <button class="send-btn send-btn-green" id="sendMoodBtn">📤 Send</button>
+                        </div>
+                    </div>
+
+                    <!-- Energy -->
+                    <div class="metric-group">
+                        <label>⚡ Energy</label>
+                        <div class="metric-row">
+                            <div class="slider-wrap">
+                                <input type="range" id="energySlider" min="1" max="10" value="6" step="1" />
+                                <span class="value" id="energyDisplay">6</span>
+                            </div>
+                            <button class="send-btn send-btn-teal" id="sendEnergyBtn">📤 Send</button>
+                        </div>
+                    </div>
+
+                    <!-- Interpersonal Issues -->
+                    <div class="metric-group">
+                        <label>⚡ Interpersonal Issues (select & send)</label>
+                        <div class="issue-grid" style="margin-bottom:8px;">
+                            <div class="issue-check">
+                                <input type="checkbox" id="issueGrief" />
+                                <label for="issueGrief">💔 Grief</label>
+                            </div>
+                            <div class="issue-check">
+                                <input type="checkbox" id="issueDispute" />
+                                <label for="issueDispute">⚡ Role Dispute</label>
+                            </div>
+                            <div class="issue-check">
+                                <input type="checkbox" id="issueTransition" />
+                                <label for="issueTransition">🔄 Role Transition</label>
+                            </div>
+                            <div class="issue-check">
+                                <input type="checkbox" id="issueDeficit" />
+                                <label for="issueDeficit">🌐 Interpersonal Deficit</label>
+                            </div>
+                        </div>
+                        <div class="metric-row">
+                            <button class="send-btn send-btn-purple" id="sendIssuesBtn" style="flex:1;">📤 Send Selected Issues</button>
+                        </div>
+                    </div>
+
+                    <!-- Notes -->
+                    <div class="metric-group">
+                        <label>📓 Notes</label>
+                        <div class="metric-row">
+                            <input type="text" id="notes" placeholder="Type a note…" />
+                            <button class="send-btn send-btn-pink" id="sendNotesBtn">📤 Send</button>
+                        </div>
+                    </div>
+
+                    <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
+                        <button class="btn-outline btn-sm" id="clearAllBtn">🗑️ Clear All</button>
+                        <button class="btn-outline btn-sm" id="exportBtn">📥 Export JSON</button>
+                        <button class="btn-danger-outline btn-sm" id="cancelEditBtn" style="display:none;">✖️ Cancel Edit</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right: History + Stability -->
+            <div>
+                <!-- Stability -->
+                <div class="card" style="margin-bottom:24px;">
+                    <div class="card-header">
+                        <h2><span class="emoji">📊</span> Rhythm Stability</h2>
+                        <span class="badge">4 core rhythms</span>
+                    </div>
+                    <div class="stability-ring">
+                        <div class="ring" id="ringVisual">
+                            <div class="inner" id="ringInner">—%</div>
+                        </div>
+                        <div class="ring-details">
+                            <strong id="stabilityLabel">Calculating…</strong>
+                            <span id="stabilityDesc">Based on Wake, First Contact, Start Activity &amp; Bedtime.</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- History -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2><span class="emoji">📋</span> Logs for <span id="historyDateLabel">Today</span></h2>
+                        <span class="badge" id="historyCount">0 logs</span>
+                    </div>
+                    <div class="entries-list" id="entriesList">
+                        <div class="empty-state">
+                            <div class="empty-icon">📭</div>
+                            <p>No logs for this date yet. Start sending metrics!</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Section -->
+        <div class="charts-grid" id="chartsGrid">
+            <!-- Wake Time Trend -->
+            <div class="card">
+                <div class="card-header">
+                    <h2><span class="emoji">⏰</span> Wake Time Trend</h2>
+                    <span class="badge">X: Date · Y: Time</span>
+                </div>
+                <canvas id="wakeChart"></canvas>
+                <div class="chart-note">Shows your wake time trend over time</div>
+            </div>
+
+            <!-- First Contact Trend -->
+            <div class="card">
+                <div class="card-header">
+                    <h2><span class="emoji">🤝</span> First Contact Trend</h2>
+                    <span class="badge">X: Date · Y: Time</span>
+                </div>
+                <canvas id="firstContactChart"></canvas>
+                <div class="chart-note">Shows your first contact time trend over time</div>
+            </div>
+
+            <!-- Start Activity Trend -->
+            <div class="card">
+                <div class="card-header">
+                    <h2><span class="emoji">💼</span> Start Activity Trend</h2>
+                    <span class="badge">X: Date · Y: Time</span>
+                </div>
+                <canvas id="startActivityChart"></canvas>
+                <div class="chart-note">Shows your activity start time trend over time</div>
+            </div>
+
+            <!-- Bedtime Trend -->
+            <div class="card">
+                <div class="card-header">
+                    <h2><span class="emoji">🌙</span> Bedtime Trend</h2>
+                    <span class="badge">X: Date · Y: Time</span>
+                </div>
+                <canvas id="bedtimeChart"></canvas>
+                <div class="chart-note">Shows your bedtime trend over time</div>
+            </div>
+
+            <!-- Mood Trend -->
+            <div class="card">
+                <div class="card-header">
+                    <h2><span class="emoji">😊</span> Mood Trend</h2>
+                    <span class="badge">X: Date · Y: Mood (1-10)</span>
+                </div>
+                <canvas id="moodChart"></canvas>
+                <div class="chart-note">Shows your mood trend over time</div>
+            </div>
+
+            <!-- Energy Trend -->
+            <div class="card">
+                <div class="card-header">
+                    <h2><span class="emoji">⚡</span> Energy Trend</h2>
+                    <span class="badge">X: Date · Y: Energy (1-10)</span>
+                </div>
+                <canvas id="energyChart"></canvas>
+                <div class="chart-note">Shows your energy trend over time</div>
+            </div>
+
+            <!-- Issues Frequency -->
+            <div class="card">
+                <div class="card-header">
+                    <h2><span class="emoji">📊</span> Issues Frequency</h2>
+                </div>
+                <canvas id="issuesChart"></canvas>
+                <div class="chart-note">How often each interpersonal issue was reported</div>
+            </div>
+
+            <!-- Activity Types -->
+            <div class="card">
+                <div class="card-header">
+                    <h2><span class="emoji">🧩</span> Activity Types</h2>
+                </div>
+                <canvas id="activityTypeChart"></canvas>
+                <div class="chart-note">Distribution of your activity types</div>
+            </div>
+        </div>
+
+        <footer style="text-align:center;padding:16px 0 4px;font-size:12px;color:var(--text-light);">
+            IPSRT Tracker · Cloud Sync · Data stored securely in Supabase · Click ✏️ on any log to edit
+        </footer>
+    </div>
+
+    <script>
+        (function() {
+            'use strict';
+
+            // ---- SUPABASE CONFIGURATION ----
+            const SUPABASE_URL = 'https://nytprzfdmjuggodvospd.supabase.co/rest/v1/';
+            const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im55dHByemZkbWp1Z2dvZHZvc3BkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2NjQwNzcsImV4cCI6MjA5OTI0MDA3N30.PG5KNaN8QIhJxJ25ZovwfR5YL3QbQYxSzKZ9vgmK3og';
+
+            // Initialize Supabase client
+            const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+            // ---- DOM refs ----
+            const $ = id => document.getElementById(id);
+            const datePicker = $('datePicker');
+            const goToTodayBtn = $('goToTodayBtn');
+            const logDateBadge = $('logDateBadge');
+            const historyDateLabel = $('historyDateLabel');
+            const totalLogsEl = $('totalLogs');
+            const avgMoodEl = $('avgMood');
+            const avgEnergyEl = $('avgEnergy');
+            const stabilityScoreEl = $('stabilityScore');
+            const mealCountEl = $('mealCount');
+            const activityCountEl = $('activityCount');
+            const entriesList = $('entriesList');
+            const historyCount = $('historyCount');
+            const toast = $('toast');
+            const editIndicator = $('editIndicator');
+            const cancelEditBtn = $('cancelEditBtn');
+            const syncStatus = $('syncStatus');
+            const syncBtn = $('syncBtn');
+
+            // Inputs
+            const wakeTime = $('wakeTime');
+            const firstContact = $('firstContact');
+            const startActivity = $('startActivity');
+            const bedtime = $('bedtime');
+            const activityType = $('activityType');
+            const moodSlider = $('moodSlider');
+            const moodDisplay = $('moodDisplay');
+            const energySlider = $('energySlider');
+            const energyDisplay = $('energyDisplay');
+            const issueGrief = $('issueGrief');
+            const issueDispute = $('issueDispute');
+            const issueTransition = $('issueTransition');
+            const issueDeficit = $('issueDeficit');
+            const notes = $('notes');
+
+            // Send buttons
+            const sendWakeBtn = $('sendWakeBtn');
+            const sendFirstContactBtn = $('sendFirstContactBtn');
+            const sendStartActivityBtn = $('sendStartActivityBtn');
+            const sendBedtimeBtn = $('sendBedtimeBtn');
+            const sendActivityTypeBtn = $('sendActivityTypeBtn');
+            const sendMoodBtn = $('sendMoodBtn');
+            const sendEnergyBtn = $('sendEnergyBtn');
+            const sendIssuesBtn = $('sendIssuesBtn');
+            const sendNotesBtn = $('sendNotesBtn');
+
+            // Stability
+            const ringVisual = $('ringVisual');
+            const ringInner = $('ringInner');
+            const stabilityLabel = $('stabilityLabel');
+            const stabilityDesc = $('stabilityDesc');
+
+            // Chart canvases
+            const wakeCanvas = $('wakeChart');
+            const firstContactCanvas = $('firstContactChart');
+            const startActivityCanvas = $('startActivityChart');
+            const bedtimeCanvas = $('bedtimeChart');
+            const moodCanvas = $('moodChart');
+            const energyCanvas = $('energyChart');
+            const issuesCanvas = $('issuesChart');
+            const activityTypeCanvas = $('activityTypeChart');
+
+            // ---- State ----
+            let logs = [];
+            let selectedDate = getToday();
+            let editState = null;
+            let chartInstances = {};
+            let isSyncing = false;
+            let userId = null;
+
+            // ---- Helpers ----
+            function getToday() {
+                const d = new Date();
+                return d.toISOString().split('T')[0];
+            }
+
+            function getNow() {
+                const d = new Date();
+                return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+            }
+
+            function getFullTimestamp() {
+                const d = new Date();
+                return d.toISOString().replace('T', ' ').slice(0, 16);
+            }
+
+            function formatDateDisplay(dateStr) {
+                const d = new Date(dateStr + 'T00:00:00');
+                return d.toLocaleDateString('en-US', {
+                    weekday: 'short',
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric'
+                });
+            }
+
+            function formatDateShort(dateStr) {
+                const d = new Date(dateStr + 'T00:00:00');
+                return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            }
+
+            function getIssueLabels() {
+                const labels = [];
+                if (issueGrief.checked) labels.push('Grief');
+                if (issueDispute.checked) labels.push('Role Dispute');
+                if (issueTransition.checked) labels.push('Role Transition');
+                if (issueDeficit.checked) labels.push('Interpersonal Deficit');
+                return labels;
+            }
+
+            function setIssueCheckboxes(labels) {
+                issueGrief.checked = labels.includes('Grief');
+                issueDispute.checked = labels.includes('Role Dispute');
+                issueTransition.checked = labels.includes('Role Transition');
+                issueDeficit.checked = labels.includes('Interpersonal Deficit');
+            }
+
+            function getValueDisplay(value) {
+                if (typeof value === 'number') return value.toString();
+                if (Array.isArray(value)) return value.join(', ') || 'none';
+                return value || '—';
+            }
+
+            // ---- Supabase Auth ----
+            async function signInAnonymously() {
+                try {
+                    const { data, error } = await supabase.auth.signInAnonymously();
+                    if (error) {
+                        console.error('Auth error:', error);
+                        setSyncStatus('offline', '❌ Auth failed');
+                        return false;
+                    }
+                    userId = data.user.id;
+                    console.log('✅ Authenticated with Supabase');
+                    setSyncStatus('online', '✅ Connected');
+                    return true;
+                } catch (error) {
+                    console.error('Auth error:', error);
+                    setSyncStatus('offline', '❌ Auth error');
+                    return false;
+                }
+            }
+
+            // ---- Supabase CRUD ----
+            async function loadLogsFromSupabase() {
+                try {
+                    const { data, error } = await supabase
+                        .from('ipsrt_logs')
+                        .select('*')
+                        .order('date', { ascending: false })
+                        .order('time', { ascending: false });
+
+                    if (error) {
+                        console.error('Load error:', error);
+                        throw error;
+                    }
+
+                    logs = data.map(row => ({
+                        id: row.id,
+                        date: row.date,
+                        time: row.time,
+                        timestamp: row.timestamp,
+                        type: row.type,
+                        value: row.value
+                    }));
+
+                    return true;
+                } catch (error) {
+                    console.error('Load error:', error);
+                    showToast('❌ Failed to load data from cloud', 'error');
+                    return false;
+                }
+            }
+
+            async function addLogToSupabase(log) {
+                try {
+                    const { data, error } = await supabase
+                        .from('ipsrt_logs')
+                        .insert([{
+                            date: log.date,
+                            time: log.time,
+                            timestamp: log.timestamp,
+                            type: log.type,
+                            value: log.value
+                        }])
+                        .select();
+
+                    if (error) {
+                        console.error('Insert error:', error);
+                        throw error;
+                    }
+
+                    return data[0];
+                } catch (error) {
+                    console.error('Insert error:', error);
+                    showToast('❌ Failed to save to cloud', 'error');
+                    return null;
+                }
+            }
+
+            async function updateLogInSupabase(id, log) {
+                try {
+                    const { error } = await supabase
+                        .from('ipsrt_logs')
+                        .update({
+                            date: log.date,
+                            time: log.time,
+                            timestamp: log.timestamp,
+                            type: log.type,
+                            value: log.value
+                        })
+                        .eq('id', id);
+
+                    if (error) {
+                        console.error('Update error:', error);
+                        throw error;
+                    }
+
+                    return true;
+                } catch (error) {
+                    console.error('Update error:', error);
+                    showToast('❌ Failed to update in cloud', 'error');
+                    return false;
+                }
+            }
+
+            async function deleteLogFromSupabase(id) {
+                try {
+                    const { error } = await supabase
+                        .from('ipsrt_logs')
+                        .delete()
+                        .eq('id', id);
+
+                    if (error) {
+                        console.error('Delete error:', error);
+                        throw error;
+                    }
+
+                    return true;
+                } catch (error) {
+                    console.error('Delete error:', error);
+                    showToast('❌ Failed to delete from cloud', 'error');
+                    return false;
+                }
+            }
+
+            async function clearAllFromSupabase() {
+                try {
+                    const { error } = await supabase
+                        .from('ipsrt_logs')
+                        .delete()
+                        .neq('id', '00000000-0000-0000-0000-000000000000');
+
+                    if (error) {
+                        console.error('Clear all error:', error);
+                        throw error;
+                    }
+
+                    return true;
+                } catch (error) {
+                    console.error('Clear all error:', error);
+                    showToast('❌ Failed to clear cloud data', 'error');
+                    return false;
+                }
+            }
+
+            function setSyncStatus(status, text) {
+                syncStatus.className = 'sync-status ' + status;
+                syncStatus.textContent = text;
+            }
+
+            // ---- CRUD Operations (with sync) ----
+            async function addLog(type, value) {
+                const log = {
+                    date: selectedDate,
+                    time: getNow(),
+                    timestamp: getFullTimestamp(),
+                    type: type,
+                    value: value
+                };
+
+                // Add to Supabase
+                const inserted = await addLogToSupabase(log);
+                if (inserted) {
+                    // Add to local state
+                    logs.unshift({
+                        id: inserted.id,
+                        date: inserted.date,
+                        time: inserted.time,
+                        timestamp: inserted.timestamp,
+                        type: inserted.type,
+                        value: inserted.value
+                    });
+                    refreshUI();
+                    showToast(`✅ ${type}: ${getValueDisplay(value)} (Saved to cloud)`, 'success');
+                    return;
+                }
+
+                // If Supabase fails, try local storage fallback
+                showToast('⚠️ Could not save to cloud, check your connection', 'error');
+            }
+
+            async function updateLog(index, type, value) {
+                if (index < 0 || index >= logs.length) return;
+                const log = logs[index];
+                const updatedLog = {
+                    date: log.date,
+                    time: getNow(),
+                    timestamp: getFullTimestamp(),
+                    type: type,
+                    value: value
+                };
+
+                const success = await updateLogInSupabase(log.id, updatedLog);
+                if (success) {
+                    logs[index].value = value;
+                    logs[index].time = getNow();
+                    logs[index].timestamp = getFullTimestamp();
+                    refreshUI();
+                    clearEditState();
+                    showToast(`✅ Updated ${type}`, 'success');
+                }
+            }
+
+            async function deleteLog(index) {
+                if (!confirm('Delete this log?')) return;
+                const log = logs[index];
+                if (!log) return;
+
+                const success = await deleteLogFromSupabase(log.id);
+                if (success) {
+                    logs.splice(index, 1);
+                    refreshUI();
+                    if (editState && editState.index === index) clearEditState();
+                    showToast(`🗑️ ${log.type} deleted`, 'info');
+                }
+            }
+
+            async function clearAll() {
+                if (logs.length === 0) return;
+                if (!confirm('⚠️ Delete ALL logs? This cannot be undone.')) return;
+
+                const success = await clearAllFromSupabase();
+                if (success) {
+                    logs = [];
+                    refreshUI();
+                    clearEditState();
+                    showToast('🗑️ All cleared from cloud', 'error');
+                }
+            }
+
+            // ---- Edit State ----
+            function setEditState(index, type, value) {
+                clearEditState();
+                editState = { index, type, value };
+                editIndicator.classList.add('active');
+                cancelEditBtn.style.display = 'inline-block';
+
+                document.querySelectorAll('.entry-item').forEach(el => el.classList.remove('editing'));
+                const items = document.querySelectorAll('.entry-item');
+                if (items[index]) {
+                    items[index].classList.add('editing');
+                    items[index].scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+
+                const fieldMap = {
+                    'Wake Time': { input: wakeTime, type: 'time' },
+                    'First Contact': { input: firstContact, type: 'time' },
+                    'Start Activity': { input: startActivity, type: 'time' },
+                    'Bedtime': { input: bedtime, type: 'time' },
+                    'Activity Type': { input: activityType, type: 'select' },
+                    'Mood': { input: moodSlider, type: 'slider', display: moodDisplay },
+                    'Energy': { input: energySlider, type: 'slider', display: energyDisplay },
+                    'Issues': { input: null, type: 'issues' },
+                    'Note': { input: notes, type: 'text' }
+                };
+
+                const field = fieldMap[type];
+                if (field) {
+                    if (field.type === 'time' || field.type === 'text') {
+                        field.input.value = value;
+                        field.input.classList.add('editing');
+                    } else if (field.type === 'select') {
+                        field.input.value = value;
+                        field.input.classList.add('editing');
+                    } else if (field.type === 'slider') {
+                        field.input.value = value;
+                        field.display.textContent = value;
+                        field.input.classList.add('editing');
+                    } else if (field.type === 'issues') {
+                        if (Array.isArray(value)) {
+                            setIssueCheckboxes(value);
+                        }
+                    }
+                }
+
+                const btnMap = {
+                    'Wake Time': sendWakeBtn,
+                    'First Contact': sendFirstContactBtn,
+                    'Start Activity': sendStartActivityBtn,
+                    'Bedtime': sendBedtimeBtn,
+                    'Activity Type': sendActivityTypeBtn,
+                    'Mood': sendMoodBtn,
+                    'Energy': sendEnergyBtn,
+                    'Issues': sendIssuesBtn,
+                    'Note': sendNotesBtn
+                };
+                const btn = btnMap[type];
+                if (btn) {
+                    btn.textContent = '✏️ Update';
+                    btn.classList.add('send-btn-update');
+                }
+
+                showToast(`✏️ Editing ${type}`, 'info');
+            }
+
+            function clearEditState() {
+                if (editState) {
+                    document.querySelectorAll('.metric-row input, .metric-row select').forEach(el => {
+                        el.classList.remove('editing');
+                    });
+                    const allBtns = [
+                        sendWakeBtn, sendFirstContactBtn, sendStartActivityBtn,
+                        sendBedtimeBtn, sendActivityTypeBtn, sendMoodBtn,
+                        sendEnergyBtn, sendIssuesBtn, sendNotesBtn
+                    ];
+                    const originalTexts = {
+                        [sendWakeBtn.id]: '📤 Send',
+                        [sendFirstContactBtn.id]: '📤 Send',
+                        [sendStartActivityBtn.id]: '📤 Send',
+                        [sendBedtimeBtn.id]: '📤 Send',
+                        [sendActivityTypeBtn.id]: '📤 Send',
+                        [sendMoodBtn.id]: '📤 Send',
+                        [sendEnergyBtn.id]: '📤 Send',
+                        [sendIssuesBtn.id]: '📤 Send Selected Issues',
+                        [sendNotesBtn.id]: '📤 Send'
+                    };
+                    allBtns.forEach(b => {
+                        b.textContent = originalTexts[b.id] || '📤 Send';
+                        b.classList.remove('send-btn-update');
+                    });
+                    document.querySelectorAll('.entry-item').forEach(el => el.classList.remove('editing'));
+                }
+                editState = null;
+                editIndicator.classList.remove('active');
+                cancelEditBtn.style.display = 'none';
+            }
+
+            // ---- Date Selection ----
+            function setSelectedDate(date) {
+                selectedDate = date;
+                datePicker.value = date;
+                const displayDate = formatDateDisplay(date);
+                logDateBadge.textContent = formatDateShort(date);
+                historyDateLabel.textContent = displayDate;
+                clearEditState();
+                refreshUI();
+            }
+
+            function goToToday() {
+                setSelectedDate(getToday());
+                showToast('📅 Jumped to today', 'info');
+            }
+
+            // ---- Export ----
+            function exportJSON() {
+                if (logs.length === 0) {
+                    showToast('No data to export.', 'error');
+                    return;
+                }
+                const dataStr = JSON.stringify(logs, null, 2);
+                const blob = new Blob([dataStr], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `ipsrt_logs_${getToday()}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                showToast('📥 Export downloaded!', 'success');
+            }
+
+            // ---- Stats ----
+            function computeStats() {
+                const total = logs.length;
+                totalLogsEl.textContent = total;
+
+                const moodLogs = logs.filter(l => l.type === 'Mood');
+                const energyLogs = logs.filter(l => l.type === 'Energy');
+                const mealLogs = logs.filter(l => l.type === 'Meal');
+                const activityLogs = logs.filter(l => l.type === 'Activity');
+
+                mealCountEl.textContent = mealLogs.length;
+                activityCountEl.textContent = activityLogs.length;
+
+                if (moodLogs.length > 0) {
+                    const moodSum = moodLogs.reduce((s, l) => s + parseInt(l.value, 10), 0);
+                    avgMoodEl.textContent = (moodSum / moodLogs.length).toFixed(1);
+                } else {
+                    avgMoodEl.textContent = '—';
+                }
+
+                if (energyLogs.length > 0) {
+                    const energySum = energyLogs.reduce((s, l) => s + parseInt(l.value, 10), 0);
+                    avgEnergyEl.textContent = (energySum / energyLogs.length).toFixed(1);
+                } else {
+                    avgEnergyEl.textContent = '—';
+                }
+
+                // Stability (using all logs)
+                const wakeLogs = logs.filter(l => l.type === 'Wake Time');
+                const contactLogs = logs.filter(l => l.type === 'First Contact');
+                const startLogs = logs.filter(l => l.type === 'Start Activity');
+                const bedLogs = logs.filter(l => l.type === 'Bedtime');
+
+                const allWake = wakeLogs.map(l => l.value).filter(v => v);
+                const allContact = contactLogs.map(l => l.value).filter(v => v);
+                const allStart = startLogs.map(l => l.value).filter(v => v);
+                const allBed = bedLogs.map(l => l.value).filter(v => v);
+
+                let stability = 0;
+                let validFields = 0;
+
+                [allWake, allContact, allStart, allBed].forEach(times => {
+                    if (times.length < 2) return;
+                    const minutes = times.map(t => {
+                        const [h, m] = t.split(':').map(Number);
+                        return h * 60 + m;
+                    });
+                    const mean = minutes.reduce((a, b) => a + b, 0) / minutes.length;
+                    const variance = minutes.reduce((a, b) => a + (b - mean) ** 2, 0) / minutes.length;
+                    const stdDev = Math.sqrt(variance);
+                    const normalized = Math.min(stdDev / 180, 1);
+                    stability += (1 - normalized);
+                    validFields++;
+                });
+
+                let stabilityPercent = 0;
+                if (validFields > 0) {
+                    stabilityPercent = Math.max(0, Math.round((stability / validFields) * 100));
+                }
+
+                stabilityScoreEl.textContent = stabilityPercent + '%';
+                ringInner.textContent = stabilityPercent + '%';
+                const percent = Math.min(stabilityPercent, 100);
+                ringVisual.style.background =
+                    `conic-gradient(#4A6CF7 0% ${percent}%, #E2E8F0 ${percent}% 100%)`;
+
+                if (stabilityPercent >= 70) {
+                    stabilityLabel.textContent = '🌟 Stable Rhythm';
+                    stabilityDesc.textContent = 'Great consistency in your core routines!';
+                } else if (stabilityPercent >= 50) {
+                    stabilityLabel.textContent = '🔄 Moderately Stable';
+                    stabilityDesc.textContent = 'Some variation — focus on regular bed/wake times.';
+                } else if (stabilityPercent > 0) {
+                    stabilityLabel.textContent = '⚠️ Needs Attention';
+                    stabilityDesc.textContent = 'Try to stabilise your wake, activity start, and bedtime.';
+                } else {
+                    stabilityLabel.textContent = '📊 Need more data';
+                    stabilityDesc.textContent = 'Log more entries to see your stability trend.';
+                }
+
+                const selectedLogs = getLogsForDate(selectedDate);
+                historyCount.textContent = `${selectedLogs.length} log${selectedLogs.length > 1 ? 's' : ''}`;
+            }
+
+            // ---- Get logs for selected date ----
+            function getLogsForDate(date) {
+                return logs.filter(l => l.date === date);
+            }
+
+            // ---- Render History ----
+            function renderHistory() {
+                const selectedLogs = getLogsForDate(selectedDate);
+
+                if (selectedLogs.length === 0) {
+                    entriesList.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-icon">📭</div>
+                            <p>No logs for ${formatDateDisplay(selectedDate)} yet. Start sending metrics!</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                let html = '';
+                selectedLogs.forEach((log, idx) => {
+                    const actualIndex = logs.indexOf(log);
+                    const displayValue = getValueDisplay(log.value);
+                    const isEditing = editState && editState.index === actualIndex;
+                    html += `
+                        <div class="entry-item ${isEditing ? 'editing' : ''}">
+                            <div class="entry-time">${log.time}</div>
+                            <div class="entry-type">${log.type}</div>
+                            <div class="entry-value">${displayValue}</div>
+                            <div class="entry-actions">
+                                <button class="edit-btn" data-index="${actualIndex}" title="Edit">✏️</button>
+                                <button class="delete-btn" data-index="${actualIndex}" title="Delete">🗑️</button>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                entriesList.innerHTML = html;
+
+                entriesList.querySelectorAll('.edit-btn').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const idx = parseInt(this.dataset.index, 10);
+                        const log = logs[idx];
+                        if (log) {
+                            setEditState(idx, log.type, log.value);
+                        }
+                    });
+                });
+
+                entriesList.querySelectorAll('.delete-btn').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const idx = parseInt(this.dataset.index, 10);
+                        deleteLog(idx);
+                    });
+                });
+            }
+
+            // ---- Charts ----
+            function destroyCharts() {
+                Object.keys(chartInstances).forEach(key => {
+                    if (chartInstances[key]) {
+                        chartInstances[key].destroy();
+                        delete chartInstances[key];
+                    }
+                });
+                chartInstances = {};
+            }
+
+            function timeToMinutes(timeStr) {
+                if (!timeStr) return null;
+                const [h, m] = timeStr.split(':').map(Number);
+                return h * 60 + m;
+            }
+
+            function minutesToTime(minutes) {
+                if (minutes === null || minutes === undefined) return '';
+                const h = Math.floor(minutes / 60);
+                const m = Math.round(minutes % 60);
+                return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+            }
+
+            function getDateRange(logsData) {
+                if (logsData.length === 0) return [];
+                const dates = logsData.map(l => l.date);
+                const uniqueDates = [...new Set(dates)].sort();
+                return uniqueDates;
+            }
+
+            function createTrendChart(canvas, label, logsData, isTime = false, color = '#4A6CF7') {
+                if (logsData.length === 0) {
+                    const ctx = canvas.getContext('2d');
+                    chartInstances[label] = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: [],
+                            datasets: [{
+                                label: label,
+                                data: [],
+                                borderColor: color,
+                                backgroundColor: color + '20',
+                                fill: false,
+                                tension: 0.2,
+                                pointRadius: 5,
+                                pointBackgroundColor: color,
+                                pointBorderColor: '#fff',
+                                pointBorderWidth: 2,
+                                spanGaps: true
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: true,
+                            plugins: { legend: { display: false } },
+                            scales: {
+                                x: { title: { display: true, text: 'Date' } },
+                                y: { title: { display: true, text: label } }
+                            }
+                        }
+                    });
+                    return;
+                }
+
+                const allDates = getDateRange(logsData);
+                const dateValueMap = {};
+                logsData.forEach(log => {
+                    if (!dateValueMap[log.date]) {
+                        dateValueMap[log.date] = [];
+                    }
+                    let value = log.value;
+                    if (isTime) {
+                        value = timeToMinutes(log.value);
+                    } else {
+                        value = parseFloat(log.value);
+                    }
+                    if (value !== null && value !== undefined && !isNaN(value)) {
+                        dateValueMap[log.date].push(value);
+                    }
+                });
+
+                const dataPoints = [];
+                allDates.forEach(date => {
+                    if (dateValueMap[date] && dateValueMap[date].length > 0) {
+                        dateValueMap[date].forEach(val => {
+                            dataPoints.push({ x: date, y: val });
+                        });
+                    } else {
+                        dataPoints.push({ x: date, y: null });
+                    }
+                });
+
+                dataPoints.sort((a, b) => a.x.localeCompare(b.x));
+
+                const labels = dataPoints.map(d => formatDateShort(d.x));
+                const values = dataPoints.map(d => d.y);
+
+                const validValues = values.filter(v => v !== null && v !== undefined && !isNaN(v));
+                let yMin = 0;
+                let yMax = isTime ? 1440 : 10;
+                if (validValues.length > 0) {
+                    const minVal = Math.min(...validValues);
+                    const maxVal = Math.max(...validValues);
+                    if (isTime) {
+                        const padding = 30;
+                        yMin = Math.max(0, minVal - padding);
+                        yMax = Math.min(1440, maxVal + padding);
+                    } else {
+                        const padding = 1;
+                        yMin = Math.max(0, minVal - padding);
+                        yMax = Math.max(10, maxVal + padding);
+                    }
+                }
+
+                const ctx = canvas.getContext('2d');
+
+                const chartConfig = {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: label,
+                            data: values,
+                            borderColor: color,
+                            backgroundColor: color + '20',
+                            fill: false,
+                            tension: 0.2,
+                            pointRadius: 5,
+                            pointBackgroundColor: color,
+                            pointBorderColor: '#fff',
+                            pointBorderWidth: 2,
+                            spanGaps: false
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const rawValue = context.parsed.y;
+                                        if (rawValue === null || rawValue === undefined) return 'No data';
+                                        if (isTime) {
+                                            return minutesToTime(rawValue);
+                                        }
+                                        return rawValue.toString();
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                title: { display: true, text: 'Date', font: { weight: 'bold' } },
+                                ticks: { autoSkip: true, maxTicksLimit: 15, maxRotation: 45, minRotation: 30 }
+                            },
+                            y: {
+                                title: { display: true, text: label, font: { weight: 'bold' } },
+                                min: yMin,
+                                max: yMax,
+                                ticks: {
+                                    callback: function(value) {
+                                        if (isTime) {
+                                            return minutesToTime(value);
+                                        }
+                                        return value;
+                                    },
+                                    stepSize: isTime ? 30 : 1
+                                }
+                            }
+                        }
+                    }
+                };
+
+                chartInstances[label] = new Chart(ctx, chartConfig);
+            }
+
+            function renderCharts() {
+                destroyCharts();
+
+                const wakeLogs = logs.filter(l => l.type === 'Wake Time');
+                const contactLogs = logs.filter(l => l.type === 'First Contact');
+                const startLogs = logs.filter(l => l.type === 'Start Activity');
+                const bedLogs = logs.filter(l => l.type === 'Bedtime');
+                const moodLogs = logs.filter(l => l.type === 'Mood');
+                const energyLogs = logs.filter(l => l.type === 'Energy');
+
+                createTrendChart(wakeCanvas, 'Wake Time', wakeLogs, true, '#4A6CF7');
+                createTrendChart(firstContactCanvas, 'First Contact', contactLogs, true, '#6B8AFF');
+                createTrendChart(startActivityCanvas, 'Start Activity', startLogs, true, '#7C5CFC');
+                createTrendChart(bedtimeCanvas, 'Bedtime', bedLogs, true, '#3458D6');
+                createTrendChart(moodCanvas, 'Mood', moodLogs, false, '#6BCB77');
+                createTrendChart(energyCanvas, 'Energy', energyLogs, false, '#FF6B6B');
+
+                // Issues Frequency Chart
+                const issueLogs = logs.filter(l => l.type === 'Issues');
+                const issueCounts = {};
+                issueLogs.forEach(l => {
+                    if (Array.isArray(l.value)) {
+                        l.value.forEach(issue => {
+                            issueCounts[issue] = (issueCounts[issue] || 0) + 1;
+                        });
+                    }
+                });
+                const issueLabels = Object.keys(issueCounts);
+                const issueData = Object.values(issueCounts);
+                if (issueLabels.length > 0) {
+                    const ctx = issuesCanvas.getContext('2d');
+                    chartInstances.issues = new Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels: issueLabels,
+                            datasets: [{
+                                label: 'Frequency',
+                                data: issueData,
+                                backgroundColor: ['#4A6CF7', '#7C5CFC', '#F7A072', '#6BCB77'],
+                                borderRadius: 4
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: true,
+                            plugins: { legend: { display: false } },
+                            scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+                        }
+                    });
+                }
+
+                // Activity Types Chart
+                const typeLogs = logs.filter(l => l.type === 'Activity Type');
+                const typeCounts = {};
+                typeLogs.forEach(l => {
+                    const type = l.value || 'Other';
+                    typeCounts[type] = (typeCounts[type] || 0) + 1;
+                });
+                const typeLabels = Object.keys(typeCounts);
+                const typeData = Object.values(typeCounts);
+                if (typeLabels.length > 0) {
+                    const colors = ['#4A6CF7', '#7C5CFC', '#F7A072', '#6BCB77', '#FFD93D', '#38B2AC'];
+                    const ctx = activityTypeCanvas.getContext('2d');
+                    chartInstances.activityType = new Chart(ctx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: typeLabels,
+                            datasets: [{
+                                data: typeData,
+                                backgroundColor: colors.slice(0, typeLabels.length),
+                                borderWidth: 1
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: true,
+                            plugins: { legend: { position: 'bottom' } }
+                        }
+                    });
+                }
+            }
+
+            // ---- Refresh UI ----
+            function refreshUI() {
+                computeStats();
+                renderHistory();
+                renderCharts();
+            }
+
+            // ---- Toast ----
+            let toastTimeout = null;
+
+            function showToast(message, type = 'info') {
+                toast.textContent = message;
+                toast.className = 'toast ' + type + ' show';
+                clearTimeout(toastTimeout);
+                toastTimeout = setTimeout(() => {
+                    toast.classList.remove('show');
+                }, 2500);
+            }
+
+            // ---- Send Handlers ----
+            function sendMetric(type, value, field) {
+                if (!value || value === '') {
+                    showToast(`⚠️ Please enter a value for ${type}`, 'error');
+                    return;
+                }
+
+                if (editState && editState.type === type) {
+                    updateLog(editState.index, type, value);
+                    if (field) field.value = '';
+                    return;
+                }
+
+                addLog(type, value);
+                if (field) field.value = '';
+            }
+
+            function sendIssuesHandler() {
+                const issues = getIssueLabels();
+                if (issues.length === 0) {
+                    showToast('⚠️ Please select at least one issue', 'error');
+                    return;
+                }
+                if (editState && editState.type === 'Issues') {
+                    updateLog(editState.index, 'Issues', issues);
+                    issueGrief.checked = false;
+                    issueDispute.checked = false;
+                    issueTransition.checked = false;
+                    issueDeficit.checked = false;
+                    return;
+                }
+                addLog('Issues', issues);
+                issueGrief.checked = false;
+                issueDispute.checked = false;
+                issueTransition.checked = false;
+                issueDeficit.checked = false;
+            }
+
+            // ---- Sync ----
+            async function syncData() {
+                if (isSyncing) return;
+                isSyncing = true;
+                syncStatus.className = 'sync-status syncing';
+                syncStatus.textContent = '🔄 Syncing...';
+                syncBtn.disabled = true;
+
+                try {
+                    await loadLogsFromSupabase();
+                    refreshUI();
+                    showToast('✅ Synced with cloud!', 'success');
+                    setSyncStatus('online', '✅ Connected');
+                } catch (error) {
+                    console.error('Sync error:', error);
+                    setSyncStatus('offline', '❌ Sync failed');
+                    showToast('❌ Sync failed. Check your connection.', 'error');
+                } finally {
+                    isSyncing = false;
+                    syncBtn.disabled = false;
+                }
+            }
+
+            // ---- Init ----
+            async function init() {
+                // Show connecting status
+                setSyncStatus('', '⏳ Connecting...');
+
+                // Authenticate with Supabase
+                const authSuccess = await signInAnonymously();
+                if (authSuccess) {
+                    await loadLogsFromSupabase();
+                } else {
+                    showToast('⚠️ Could not connect to cloud. Using local data only.', 'error');
+                    setSyncStatus('offline', '⚠️ Offline mode');
+                }
+
+                // Set today as default
+                const today = getToday();
+                datePicker.value = today;
+                selectedDate = today;
+                logDateBadge.textContent = formatDateShort(today);
+                historyDateLabel.textContent = formatDateDisplay(today);
+
+                // Date picker
+                datePicker.addEventListener('change', function(e) {
+                    e.stopPropagation();
+                    if (this.value) {
+                        setSelectedDate(this.value);
+                    }
+                });
+
+                // Go to today
+                goToTodayBtn.addEventListener('click', goToToday);
+
+                // Sync button
+                syncBtn.addEventListener('click', syncData);
+
+                // Set default times
+                const now = new Date();
+                const h = String(now.getHours()).padStart(2, '0');
+                const m = String(now.getMinutes()).padStart(2, '0');
+                const defaultTime = h + ':' + m;
+                if (!wakeTime.value) wakeTime.value = defaultTime;
+                if (!firstContact.value) firstContact.value = defaultTime;
+                if (!startActivity.value) startActivity.value = defaultTime;
+                if (!bedtime.value) bedtime.value = '22:30';
+
+                // Slider displays
+                moodSlider.addEventListener('input', function() {
+                    moodDisplay.textContent = this.value;
+                });
+                energySlider.addEventListener('input', function() {
+                    energyDisplay.textContent = this.value;
+                });
+
+                // Send buttons
+                sendWakeBtn.addEventListener('click', () => sendMetric('Wake Time', wakeTime.value, wakeTime));
+                sendFirstContactBtn.addEventListener('click', () => sendMetric('First Contact', firstContact.value,
+                    firstContact));
+                sendStartActivityBtn.addEventListener('click', () => sendMetric('Start Activity', startActivity.value,
+                    startActivity));
+                sendBedtimeBtn.addEventListener('click', () => sendMetric('Bedtime', bedtime.value, bedtime));
+                sendActivityTypeBtn.addEventListener('click', () => sendMetric('Activity Type', activityType.value));
+
+                sendMoodBtn.addEventListener('click', () => {
+                    const val = moodSlider.value;
+                    sendMetric('Mood', parseInt(val, 10));
+                });
+
+                sendEnergyBtn.addEventListener('click', () => {
+                    const val = energySlider.value;
+                    sendMetric('Energy', parseInt(val, 10));
+                });
+
+                sendIssuesBtn.addEventListener('click', sendIssuesHandler);
+
+                sendNotesBtn.addEventListener('click', () => {
+                    const val = notes.value.trim();
+                    if (!val) {
+                        showToast('⚠️ Please type a note', 'error');
+                        return;
+                    }
+                    sendMetric('Note', val, notes);
+                });
+
+                cancelEditBtn.addEventListener('click', () => {
+                    clearEditState();
+                    showToast('✖️ Edit cancelled', 'info');
+                });
+
+                clearAllBtn.addEventListener('click', clearAll);
+                exportBtn.addEventListener('click', exportJSON);
+
+                refreshUI();
+
+                document.addEventListener('keydown', function(e) {
+                    if (e.key === 'Escape') {
+                        if (editState) {
+                            clearEditState();
+                            showToast('✖️ Edit cancelled', 'info');
+                        }
+                    }
+                    if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') {
+                        const metricRow = e.target.closest('.metric-row');
+                        if (metricRow) {
+                            const sendBtn = metricRow.querySelector('.send-btn');
+                            if (sendBtn) sendBtn.click();
+                        }
+                    }
+                });
+            }
+
+            // Check if libraries are loaded
+            if (typeof Chart !== 'undefined' && typeof window.supabase !== 'undefined') {
+                init();
+            } else {
+                // Wait for libraries to load
+                let checks = 0;
+                const checkLibraries = setInterval(() => {
+                    checks++;
+                    if (typeof Chart !== 'undefined' && typeof window.supabase !== 'undefined') {
+                        clearInterval(checkLibraries);
+                        init();
+                    } else if (checks > 20) {
+                        clearInterval(checkLibraries);
+                        document.body.innerHTML =
+                            '<p style="padding:40px;text-align:center;">❌ Failed to load required libraries. Please check your internet connection and refresh.</p>';
+                    }
+                }, 500);
+            }
+        })();
+    </script>
+</body>
+</html>
